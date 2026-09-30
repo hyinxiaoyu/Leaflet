@@ -9,13 +9,13 @@ Requirements: REQ-0001 (Library/scanning), REQ-0003 (position/recent items), REQ
 
 ## English Overview
 
-This document defines storage contracts for ADR-0001/0002 and REQ-0001/0003/0010. Room stores Library metadata, Document metadata, versioned ReadingPosition, and a bounded MRU list. Original document bodies are never stored. Library removal cascades local rows and explicitly clears recent snapshots, but never touches files in SAF. Room may reserve schema room for future M4 FTS; M0/M1 creates no FTS table. DataStore stores display and reading preferences and lightweight UI state, not document content or large collections.
+This document defines storage contracts for ADR-0001/0002 and REQ-0001/0003/0010. Room stores Library metadata, Document metadata, path-only Directory metadata (so an empty folder can appear while browsing), versioned ReadingPosition, and a bounded MRU list. Original document bodies are never stored. Library removal cascades local rows and explicitly clears recent snapshots, but never touches files in SAF. Room may reserve schema room for future M4 FTS; M0/M1 creates no FTS table. DataStore stores display and reading preferences and lightweight UI state, not document content or large collections.
 
 SAF access is read-only. Add a folder with `ACTION_OPEN_DOCUMENT_TREE` and persist its read grant. Release a grant only when no Library shares it. `DocumentSource` is the only Reader-facing document boundary: open a read-only stream by stable document ID and resolve relative resources within the authorized tree. Streams must be closed; revoked permissions, missing files, cancellation, and unknown schemes become recoverable states. Remote images never load automatically, and external links are handed to the OS only after a user tap.
 
 The initial scan indexes metadata only and does not parse full text, titles, or TOC. A later scan may skip content-related work only when reliable mtime and size both match; missing/unknown metadata is never treated as proof that a file is unchanged. Delete missing index rows only after a complete successful scan. Partial failure, permission error, cancellation, or enumeration overflow preserves the prior index. Scans are cancellable, serialized per Library, and report static progress at intervals of at least 500 ms.
 
-The scanner recursively discovers case-insensitive `.md`, `.markdown`, and `.txt`, preserves relative folder structure, and deduplicates normalized tree URIs. Current limits are 5,000 visited entries and 500 indexed documents; exceeding either fails explicitly and retains the old index. These limits remain unverified against performance baselines. Settings restore after process recreation; corrupted preferences fall back to defaults.
+The scanner recursively discovers case-insensitive `.md`, `.markdown`, and `.txt`, preserves relative folder structure, and deduplicates normalized tree URIs. Every supported document found in the walk is indexed. A traversal guard of 5,000 visited entries (directories, files, and malformed rows) still fails explicitly and retains the old index; it is not a document quota. The guard remains unverified against performance baselines. Settings restore after process recreation; corrupted preferences fall back to defaults.
 
 ## 1. Room Tables
 
@@ -41,6 +41,11 @@ size         : Long
 lastModified : Long
 contentHash  : String? (optional; null is allowed in M0/M1)
 
+Directory (one row per indexed folder; database version 2, LT-3)
+--------
+libraryId    : String (composite PK / FK → Library.libraryId, CASCADE local rows only)
+relativePath : String (composite PK; `/`-separated in-library folder path; no file body)
+
 ReadingPosition (one versioned row per documentId)
 --------
 documentId  : String (PK/FK → Document.documentId)
@@ -59,10 +64,10 @@ titleSnapshot: String (title shown after deletion)
 lastOpenedAt : Long
 ```
 
-- Foreign keys: Document → Library CASCADE; ReadingPosition → Document CASCADE; RecentRead has no FK. Removing a Library cascades local rows and Repository explicitly clears recents; it **never touches SAF originals** (ADR-0001).
+- Foreign keys: Document → Library CASCADE; Directory → Library CASCADE; ReadingPosition → Document CASCADE; RecentRead has no FK. Removing a Library cascades local rows and Repository explicitly clears recents; it **never touches SAF originals** (ADR-0001).
 - Never store file bodies in any table. Database contains auxiliary index/progress/settings/UI state only.
 - Reserve Room schema extensibility for future FTS (M4), but do not create an FTS table or library-wide index in M0/M1.
-- Schema baseline is `core/storage/schemas/<db-fqn>/1.json`; every version change needs a tested Migration (see `LeafletDatabase` KDoc). For the noted KSP build issue, stop Gradle and clear module `build/` before a clean check.
+- Schema baselines are checked in under `core/storage/schemas/<db-fqn>/`: `1.json` (shipped v1) and `2.json` (current v2, adds `directories`). Every version change needs a tested Migration plus a migration test that opens the previous schema (`DirectoryMigrationTest` covers 1 → 2; see `LeafletDatabase` KDoc). Regenerating a schema uses the opt-in export described in `core/storage/build.gradle.kts` (`./gradlew :core:storage:kspDebugKotlin -Proom.schemaExport=true`) because the default schema-export path hits the noted Room 2.8.5 + KSP error.
 
 ## 2. Read-only SAF Access
 
@@ -94,8 +99,9 @@ lastOpenedAt : Long
 ### 3.4 Discovery and Browsing
 
 - Recursively query child documents through `DocumentsContract` (BFS). Discover `.md/.markdown/.txt` case-insensitively and preserve hierarchy. Empty/unsupported-only tree succeeds with zero docs. Normalize/deduplicate tree URI and show “already exists” on duplicate.
+- LT-3: every visited subdirectory is stored as a path-only Directory row in the same commit transaction as documents, so a folder with no indexed document still appears on its parent browse level. The browse level unions those rows with the parent segments derived from document paths. Directory rows obey the deletion-commit rule above (no cleanup when subtree evidence is missing) and never read a body or copy an original.
 - Sort names case-insensitively per directory and globally by relativePath before commit. T05 provider tests cover 18-level depth, mid-walk failure, slow queries, missing metadata; stub tree provider was exercised through real ContentResolver path.
-- Enumeration caps (mdreader reference; UNVERIFIED until T03/T13 baseline): 5,000 visited entries and 500 indexed documents per scan. Exceeding caps explicitly fails, reports reason, retains old index, offers retry; never silently truncates.
+- Traversal guard (UNVERIFIED until a device baseline): 5,000 visited entries per scan, counting directories, files, and malformed rows. Exceeding it explicitly fails, reports the reason, retains the old index, and offers retry; it never silently truncates. Supported documents inside that bound are all indexed. The former 500-document cap was removed; it was an unverified copy of another reader's folder limit, not a measured Leaflet limit.
 
 ## 4. DataStore Responsibilities
 

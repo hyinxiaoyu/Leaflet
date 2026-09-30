@@ -97,9 +97,29 @@ Room stores `Library` and `Document` metadata with a `libraryId` foreign key. St
 
 Requires T02 project foundation, T04 read-only SAF/persisted grants/DAO contract, and T03 samples/performance template. Enables T07 folder-to-Reader navigation, REQ-0002 on-demand title parsing, and REQ-0003 position/recent-read foreign keys.
 
+## Additions (2026-09-28)
+
+A1 and A2 are implemented, including the LT-3 directory metadata, in [Library browse and removal tasks](../plans/library-browse-and-remove-tasks.md).
+
+### A1 — Browse keeps the folder structure
+
+The Library browse screen shows one directory level at a time, matching the selected folder's hierarchy. It does not lay every indexed document out in a single flat list.
+
+At the current level, subdirectories come first and files come after them. Each group is ordered by its own name using case-insensitive order, with the raw name as a tie-break. Entering a subdirectory shows only that directory's children. Back returns to the parent. The Library root shows the root's children.
+
+This addition does not change which files are indexed. Besides each supported file, a scan stores one path-only row per visited subdirectory, so a folder with no indexed Markdown or TXT descendant (empty, or holding only unsupported files) appears on its parent level. Directory rows carry no file body and no copy of an original, are replaced only by a complete successful scan, and show the browse screen's empty placeholder when opened.
+
+### A2 — Long-press removes the selected Library
+
+On the Library list, a long-press on one Library asks for confirmation and then removes that Library. The Library is the folder the user selected when adding it.
+
+Removal deletes the local Library row, its indexed Document rows, its indexed directory rows, the reading positions that belong to those documents, and recent-read rows for that Library. It does not delete or modify the original files. A persisted grant is released only when no other Library still uses it. The confirmation states that only the local reference and index are removed.
+
+Long-press inside the browse tree does not remove a subdirectory. That gesture is outside this addition.
+
 ## Open Questions
 
-- **Enumeration cap:** partly implemented as a 5,000-entry visit guard and 500 indexed-document cap; over-limit scans explicitly fail and retain the old index (`LibraryScanner` tests). Values are unverified until T03/T13 performance baselines.
+- **Enumeration cap:** the 500 indexed-document cap was removed. Scans index every supported document they find. A 5,000-entry visit guard remains (directories, files, and malformed rows). Exceeding it fails explicitly and retains the old index (`LibraryScanner` tests). The guard value is unverified against a device baseline.
 - **`contentHash`:** not introduced in M0/M1; use mtime + size only. `mtime=0`/missing and `size=-1` are unknown sentinels and never qualify for skip. Hash algorithm and cost are unverified.
 - **Tree URI aliases:** normalized identical URIs are deduplicated; textually different aliases to the same grant remain distinct Libraries (known limitation). Removal checks shared grants. Real-device provider alias behavior remains unverified (T13).
 - **Performance thresholds:** cold-start, scan duration, and peak memory await T03 samples and T13 real-device measurements.

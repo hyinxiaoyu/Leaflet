@@ -64,3 +64,21 @@ R3-05～10 未派发、未执行。
 M2 阅读质量增强、M3 Full 版体验完善与正式发行、M4 全库 FTS/大资料库、M5 Onyx 厂商刷新集成，是 docs/archive/init.md 的后续方向，不属于这 10 项 MVP 剩余包。LaTeX/Mermaid、双栏、复杂动画等继续后置，不为“初始文档提到过”而自动纳入本轮。
 
 完整远期路线目前无法给出可信任务总数：尚未形成可验收需求的方向，应到对应里程碑再拆分。
+
+## 后续计划
+
+[资料库浏览与移除](library-browse-and-remove-plan.zh.md)（2026-09-28）对应 REQ-0001 的 A1 与 A2。LT-1、LT-2、LT-3、LT-4 均已实现。这些任务不属于 R3-01～10。
+
+## 交付状态（2026-09-28）
+
+| 工作包 | 状态 | 交付报告 |
+| --- | --- | --- |
+| R3-01～04 | 已交付；`DEF-008` 在 R3-01 轮已复验 | [r3-01-04-execution-report.md](r3-01-04-execution-report.md)、[r3-01-04-independent-review.md](r3-01-04-independent-review.md) |
+| R3-05 | 可软件验证的条目已在模拟器上达标；修复 1 个真实缺陷 | [r3-05-delivery.zh.md](r3-05-delivery.zh.md) |
+| R3-06 | 可软件验证的条目已在模拟器上达标；修复 2 个真实缺陷；真实 provider 图片管线与中日韩/空格路径解析已覆盖 | [r3-06-delivery.zh.md](r3-06-delivery.zh.md) |
+| R3-07 | 计划中的各尺寸/形态均已在模拟器上测量，含最大 10 MB 的巨型代码块与 >16 MiB 读取上限提示；provider 读取耗时待办 | [r3-07-delivery.zh.md](r3-07-delivery.zh.md) |
+| R3-08 | 软件候选证据已汇总 | [r3-08-delivery.zh.md](r3-08-delivery.zh.md) |
+| R3-09 | **BLOCKED**：需要所有者提供真机 | [r3-09-10-readiness.zh.md](r3-09-10-readiness.zh.md) |
+| R3-10 | **BLOCKED**：需要所有者决定许可证、application ID、签名与分发渠道 | [r3-09-10-readiness.zh.md](r3-09-10-readiness.zh.md) |
+
+以上交付报告均为执行方自述，都不是独立验收结果。真机相关条目在 R3-09 于真机执行前保持未验证。

@@ -110,18 +110,22 @@ RenderBlock.links/images → :app 点击/占位绑定 → DocumentSource.resolve
 - 图片解码（`:app` `LibraryImageLoader` + `:core:reader` `ImageSample`）：SAF 树 Exact-name 步进 → provider-issued document URI → `BitmapFactory` bounds → 按视口宽 `inSampleSize`（2 的幂）→ 12MiB 上限（`MAX_DECODE_BYTES`，UNVERIFIED 待 REQ-0011 基线）再降采样；双 pass 各用各流 `use {}` 关闭；可取消（composition 离开取消、在途 pass 间 `ensureActive`）；无共享缓存（关闭即丢引用）；缺失/损坏/不支持占位（含 alt）。
 - UI（`:app`，E-Ink 安全）：灰框 + alt + 尺寸文字占位，无动画；链接为块内可点击行（T08 LINK_TAP 优先于翻页区）；外链 tap 直交 OS（无确认；无应用→静态提示）；缺失/越界/unsupported 一律静态一次性提示 + dismiss，不 crash 不空白。
 
+## 5. 导航 / 交互构件
+
 | 构件 | 位置 | 要点 |
 | --- | --- | --- |
 | `PageTurn` | `:core:reader` | `turnDistance = viewport − overlap`（默认 5%，`coerceOverlap` 钳 3–8%，与 `PageTurnBehavior` 同源、`SettingsStore.pageOverlap` 同带）；`visibleHeightPx` 扣 Insets/菜单遮挡；`next/prevOffset` 首尾 clamp，快速连翻不越界 |
-| `TapZones` / `GestureArbitration` | `:core:reader` | 左/中/右三等分（上一页/菜单/下一页，边界归右侧区）；链接/按钮/代码复制/横滑容器优先，长按永不翻页；只有未被消费的 plain tap 才进区决策 |
+| `TapZones` / `GestureArbitration` | `:core:reader` | 左/中/右三等分（上一页/菜单/下一页，边界归右侧区）；链接/按钮/代码复制/横滑容器优先，长按永不翻页；只有未被消费的 plain tap 才进区决策。`shouldShowHint(seen, dismissed)` 是纯首次运行引导判断（仅在已存值为 `false` 且尚未被关闭时显示） |
 | `TocNavigation` | `:core:reader` | `anchor → blockIndex` 按 TOC 顺序 occurrence-aware（第 k 个同名条目 → 第 k 个同名 heading 块），复用 `ParsedDocument.toc`（同源，无二次解析）；未知 anchor 回退 `positionOps`，仍未知返回 null；到达用静态加粗（无动画，E-Ink 安全） |
 | `ReadingMode` / `keepBlock` | `:core:reader` | `CONTINUOUS_SCROLL`/`PAGE_TURN`；切换不重建 list state，首可见块不变（`keepBlock` 钳界）；`keepBlock` 同时是 T09 排版变化（字号/行距/边距）重排后滚回的接口 |
-| ReaderScreen 接线 | `:app` | 恢复/TOC 跳转 `scrollToItem`（instant），翻页 `scroll { scrollBy(±distance) }`（instant）；全路径无 `smoothScroll`/`animateScrollToItem`（E-Ink FR-6）；`PAGE_TURN` 下 `userScrollEnabled=false`（手指拖动不抹屏）；菜单/标题为 in-flow 行，`viewportSize` 已是可见高（overlay 遮挡若出现则经 `PageTurn.visibleHeightPx` 扣除）；静态 `x / n · p%` 进度；E-Ink 侧 `GenericEInkController.onPageTurn`、Standard 侧 NoOp |
-| 持久化 | `:app` `SettingsStore` + `:core:storage` `ReaderSettings` | 阅读模式 + overlap（3–8%，默认 5%）存 DataStore；落位/恢复仍走 REQ-0003 位置管线（`jumpToBlock` 即时写，不经节流） |
+| ReaderScreen 接线 | `:app` | 恢复/TOC 跳转 `scrollToItem`（instant），翻页 `scroll { scrollBy(±distance) }`（instant）；全路径无平滑/动画 API；`PAGE_TURN` 下 `userScrollEnabled=false`。UX-06：列表是根 `Column` 中唯一参与测量的子项（固定内边距 + 恒定尾部间距），所有外层控件——标题、各类提示、搜索栏、阅读菜单、进度页脚——都是外层 `Box` 内不透明的浮层；切换外层控件不改变列表几何尺寸，实测的外层控件高度通过 `PageTurn.visibleHeightPx` 从翻页距离中扣除，搜索/锚点跳转会被下移到浮动顶部控件之下。静态 `x / n · p%` 进度；E-Ink 侧走 `GenericEInkController`、Standard 侧为 NoOp |
+| 持久化 | `:app` `SettingsStore` + `:core:storage` `ReaderSettings` | 阅读模式 + overlap（3–8%，默认 5%）与一次性的 `tapZonesHintSeen` 引导标记存 DataStore；落位/恢复仍走 REQ-0003 位置管线（`jumpToBlock` 即时写，不经节流） |
 
 - E-Ink 默认 `PAGE_TURN`、Standard 默认 `CONTINUOUS_SCROLL`（`ReadingMode.defaultForEink`，首次值；之后存档优先）。
 - 三区默认三等分（左右区宽度实现记录：各 1/3，REQ-0005 Open Question 初值；误触率走查留 T12/T13）。
 - 无分页引擎/zone 编辑器/完整手势系统（本节即 T08 停止条件）。
+
+UX-06（2026-09-30）：阅读器外层控件已成为浮层，因此正文 `LazyColumn` 的几何尺寸不再取决于 `menuVisible`/`searchOpen`（无墨水屏重排），文档标题不再永久占用页头，进度百分比成为贴底的静态页脚，触控区引导是一次性、不透明、单击即可关闭的浮层。浮层会遮挡正文边缘；翻页距离扣除实测外层控件高度，正文保持恒定的 32 dp 尾部间距，跳转会把目标显露在顶部控件之下。见 [ux-06-delivery.md](../plans/ux-06-delivery.md)。
 
 ## 6. Reader 模块禁令
 

@@ -118,6 +118,10 @@ AI 资料库是按目录组织的：文档之间用相对链接互引，图片�
 - REQ-0005（交互仲裁：链接点击优先于翻页区域）。
 - T09 前置（T10 依赖 T09）。
 
+## R3 证据（2026-09-28）
+
+R3-06 验收套件在真实页面上跟踪链接，发现并修复了两个缺陷：DEF-R3-06-01（`runCatching` 吞掉了「没有可处理外部链接的应用」，导致生产中该提示永远不出现）与 DEF-R3-06-02（成功的 `#anchor` 跳转从不滚动，因为待处理跳转的 effect 不会重新运行）。跨文档片段、重复标题、未知锚点、越树拒绝、中文相对路径、远程占位和图片缺失占位现已在页面上覆盖。真实 provider 的图片链路现由 `ReaderImagePipelineTest` 覆盖（实时 provider、解码预算内的采样、像素校验、缺失/撤销授权、取消），中日韩/空格/`../` 路径经真实 `DocumentSourceImpl` + DAO 由 `DocumentSourceImplTest` 覆盖。图片条目在旋转/销毁时的回收与页面级中文链接点击仍未验证。见 [r3-06-delivery.zh.md](../plans/r3-06-delivery.zh.md)。
+
 ## 待确认问题
 
 - fragment 归一化：T10 已冻结（raw → percent-decode → TOC-rule slugify，与 TOC 同源；重复标题首个匹配 best-effort）。

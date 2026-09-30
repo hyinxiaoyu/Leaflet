@@ -16,6 +16,18 @@
 
 Debug 参考：fullDebug 为 28,376,921 字节，einkDebug 为 28,376,869 字节，差值 52 字节。
 
+### R3-08 重建（2026-09-28）
+
+在 R2-08 基线之后，R3-05/06 的缺陷修复（翻页重叠比例的 `pointerInput` 键、同文档锚点跳转、外部链接无处理应用上报）与 R3 测试套件被重建。Release 体积基本不变（每个 flavor 约 +1.2 KB）；没有新增随包依赖（仅测试用的 `room-testing` 不在 `fullReleaseRuntimeClasspath` 中）。
+
+| 产物 | 字节数 | MD5 | applicationId | versionName |
+| --- | ---: | --- | --- | --- |
+| `app/build/outputs/apk/full/release/app-full-release-unsigned.apk` | 22618101 | a860df58f270b6b3ce28e01bae302bee | `io.leaflet.reader` | 0.1.0 |
+| `app/build/outputs/apk/eink/release/app-eink-release-unsigned.apk` | 22617845 | e3feeeb605ec18b59f30161ed1b6582c | `io.leaflet.reader.eink` | 0.1.0-eink |
+| 差值（full − eink） | 256 | — | — | — |
+
+Debug（参考）：fullDebug 28485321（586a6f3b5a012d69e47c85dfe2048b19）/ einkDebug 28378941（0e023c47e869de7c386c53f187fd59cf）。Full debug 体积增长来自 R3-06 图片测试新增的仅 debug 夹具 provider；已验证该 provider 不出现在任何 release dex 或合并后的 release 清单中。SHA-256、权限与测试资源隔离检查记录在 [r3-08-delivery.zh.md](../plans/r3-08-delivery.zh.md)。
+
 ### 组成与边界
 
 - Full Release APK 的 dex 为 21,869,260 B（20.86 MB，约占 APK 的 96.9%）；`resources.arsc` 为 451,176 B（约 441 KB）；8 个 ABI 对应的 native `.so` 共 73,584 B；`res/` 为 42,049 B（85 个文件，仅启动图标）。另有 `assets/dexopt/baseline.prof` 7,557 B 和 `baseline.profm` 438 B；未打包字体或正文图片。

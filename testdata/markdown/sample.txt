@@ -1,0 +1,20 @@
+Plain text sample for the TXT reading path.
+
+No Markdown here: just paragraphs separated by blank lines.
+
+Second paragraph with unicode: 中文, 日本語, emoji 📚.
+
+    Indented lines are literal text, not code blocks.
+
+Line with trailing spaces below (rendering must not choke):
+trailing-space-line   
+Tabs	inside	this	line.
+
+A faux heading (must stay plain text, never parsed as Markdown):
+
+# Not A Heading In TXT Mode
+
+- not a list, just a dash line
+1. not an ordered list either
+
+Search needle: txt-needle-plain-sample.

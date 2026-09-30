@@ -121,13 +121,15 @@ RenderBlock.links/images → App tap/placeholder binding → DocumentSource.reso
 | Component | Module | Contract |
 | --- | --- | --- |
 | `PageTurn` | `:core:reader` | Turn distance = viewport − overlap; default 5%, clamp 3–8%, shared with `PageTurnBehavior`/`SettingsStore.pageOverlap`; visible height subtracts Insets/menu; next/prev clamp at edges |
-| `TapZones` / `GestureArbitration` | `:core:reader` | Equal left/center/right zones (boundary belongs to right zone); previous/menu/next. Links/buttons/code copy/horizontal scrollers have priority; long press never turns; only unconsumed plain tap is zoned |
+| `TapZones` / `GestureArbitration` | `:core:reader` | Equal left/center/right zones (boundary belongs to right zone); previous/menu/next. Links/buttons/code copy/horizontal scrollers have priority; long press never turns; only unconsumed plain tap is zoned. `shouldShowHint(seen, dismissed)` is the pure first-run onboarding decision (shows only for a stored `false` that is not yet dismissed) |
 | `TocNavigation` | `:core:reader` | Anchor → block occurrence-aware (kth duplicate → kth heading), same `ParsedDocument.toc`, no reparse; unknown anchor tries position ops then null; landing is static bold, no animation |
 | `ReadingMode` / `keepBlock` | `:core:reader` | `CONTINUOUS_SCROLL` / `PAGE_TURN`; preserve list state and first visible block; `keepBlock` also preserves location after typography reflow |
-| ReaderScreen wiring | `:app` | Restore/TOC uses instant `scrollToItem`; turns use `scroll { scrollBy(±distance) }`; no smooth/animated API. `userScrollEnabled=false` in PAGE_TURN. Static `x / n · p%`; Generic EInkController on E-Ink, NoOp in Standard |
-| Persistence | App SettingsStore + storage ReaderSettings | Persist mode/overlap (3–8%, default 5%) in DataStore; position uses REQ-0003 (`jumpToBlock` immediate save) |
+| ReaderScreen wiring | `:app` | Restore/TOC uses instant `scrollToItem`; turns use `scroll { scrollBy(±distance) }`; no smooth/animated API. `userScrollEnabled=false` in PAGE_TURN. UX-06: the list is the only measured child of the root `Column` (fixed padding + constant tail gap) and all chrome — title, notices, search bar, reading menu, progress footer — is an opaque overlay layer inside the wrapping `Box`; toggling chrome changes no list geometry, the measured chrome heights are subtracted from the turn distance via `PageTurn.visibleHeightPx`, and a search/anchor jump is shifted below the floating top chrome. Static `x / n · p%`; Generic EInkController on E-Ink, NoOp in Standard |
+| Persistence | App SettingsStore + storage ReaderSettings | Persist mode/overlap (3–8%, default 5%) and the one-time `tapZonesHintSeen` onboarding flag in DataStore; position uses REQ-0003 (`jumpToBlock` immediate save) |
 
 Defaults: E-Ink PAGE_TURN; Standard CONTINUOUS_SCROLL (`ReadingMode.defaultForEink`, initial value; saved value wins later). Tap zones initially equal thirds; false-tap rate deferred to T12/T13. No pagination engine, zone editor, or complete gesture system.
+
+UX-06 (2026-09-30): the reader chrome is an overlay layer, so the body's `LazyColumn` geometry never depends on `menuVisible`/`searchOpen` (no E-Ink reflow), the document title no longer spends a permanent header, the progress percentage is an anchored static footer, and the tap-zone onboarding is a one-time opaque overlay dismissed by one tap. The overlay occludes the body edges; the turn distance subtracts the measured chrome, the content keeps a constant 32 dp tail gap, and jumps reveal their target below the top chrome. See [ux-06-delivery.md](../plans/ux-06-delivery.md).
 
 ## 6. Reader Module Prohibitions
 

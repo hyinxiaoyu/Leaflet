@@ -48,3 +48,22 @@ Roles: project manager/architecture owner keeps scope, evidence, and acceptance;
 6. Stop at the package boundary. Do not claim the next task, commit, or release automatically.
 
 This planning round ran no build and changed no implementation. R3 IDs in this document supersede the earlier coarse four-package split in chat. Do not include M2 Reader quality, M3 Full polish/formal release, M4 library FTS/scale, or M5 Onyx refresh integration among these ten MVP packages. LaTeX/Mermaid, two-column layout, and complex animation remain deferred. A reliable total for the long-term roadmap is unavailable until future directions become testable requirements.
+
+## Later plans
+
+[Library browse and removal](library-browse-and-remove-plan.md) (2026-09-28) adds REQ-0001 A1 and A2. LT-1, LT-2, LT-3, and LT-4 are implemented. These tasks are not part of R3-01–10.
+
+## Delivery status (2026-09-28)
+
+| Package | Status | Delivery report |
+| --- | --- | --- |
+| R3-01–04 | Delivered; `DEF-008` re-verified in the R3-01 round | [r3-01-04-execution-report.md](r3-01-04-execution-report.md), [r3-01-04-independent-review.md](r3-01-04-independent-review.md) |
+| R3-05 | Software criteria met on an emulator; two real defects fixed | [r3-05-delivery.md](r3-05-delivery.md) |
+| R3-06 | Software criteria met on an emulator; two real defects fixed; real-provider image pipeline and CJK/space resolution covered | [r3-06-delivery.md](r3-06-delivery.md) |
+| R3-07 | All planned shapes measured on an emulator, including giant code to 10 MB and the >16 MiB read-cap notice; provider read timing open | [r3-07-delivery.md](r3-07-delivery.md) |
+| R3-08 | Software candidate evidence assembled | [r3-08-delivery.md](r3-08-delivery.md) |
+| R3-09 | **BLOCKED**: needs physical hardware supplied by the owner | [r3-09-10-readiness.md](r3-09-10-readiness.md) |
+| R3-10 | **BLOCKED**: needs owner decisions on license, application ID, signing, and distribution | [r3-09-10-readiness.md](r3-09-10-readiness.md) |
+
+These delivery reports are executor self-reports; none of them is an independent acceptance
+result. Hardware rows stay unverified until R3-09 runs on a real device.

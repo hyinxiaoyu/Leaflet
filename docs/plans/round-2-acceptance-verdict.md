@@ -12,6 +12,8 @@ English | [中文](round-2-acceptance-verdict.zh.md)
 
 R2-08 delivery: this file is the sole AC-level verdict. Each AC maps to a test/command/manual record and must be exactly PASS, PARTIAL, or NOT_RUN; uncovered ACs cannot pass. Environment: emulator-5554, `sdk_gphone64_arm64`, Android 15/API 35. At the R2-08 snapshot, all four flavor/build packages passed; JVM was 494 variant / 240 unique; app had 12 page tests per flavor, plus storage 16 and Markdown 5. Current counts are in the update above. No E-Ink device: ghosting/refresh remain NOT_RUN.
 
+> **R3 status pointer (2026-09-28):** this file remains the R2-08 snapshot. Later software evidence is in the R3 delivery reports listed in [Remaining Tasks for the Initial MVP](remaining-mvp-tasks.md): R3-05 page interaction, R3-06 links/images, R3-07 large documents/search, and R3-08 software candidate. R3-09 (real device) and R3-10 (owner release decisions) stay blocked. Current suite counts: 295 unique JVM tests, 75 app instrumented tests per flavor (3 skipped), storage 17, Markdown 5.
+
 **Emulator boundary:** emulator-5554 proves only that code paths execute as designed; it does not prove E-Ink ghosting, refresh waveform, or real grayscale contrast.
 
 ## Legend

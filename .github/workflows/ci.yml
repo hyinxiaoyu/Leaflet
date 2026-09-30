@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        id: setup-java
+        with:
+          distribution: temurin
+          java-version: "17"
+      # Repo sets no org.gradle.java.home (R2-00); run the daemon on the
+      # setup-java JDK 17 via JAVA_HOME, same as local contributors.
+      - name: Point JAVA_HOME at JDK 17
+        run: echo "JAVA_HOME=${{ steps.setup-java.outputs.path }}" >> $GITHUB_ENV
+      - uses: android-actions/setup-android@v3
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses > /dev/null
+      - name: Assemble dual-flavor debug APKs
+        run: ./gradlew :app:assembleFullDebug :app:assembleEinkDebug
+      - name: Unit tests
+        run: ./gradlew test
+      - name: Lint
+        run: ./gradlew lint
+      - name: Format check (all modules)
+        run: ./gradlew ktlintCheck

@@ -1,0 +1,62 @@
+[versions]
+# Frozen toolchain (T00 measured, T02 verifies by build). Do NOT upgrade without an ADR task.
+agp = "8.13.2"
+kotlin = "2.0.21"
+ksp = "2.0.21-1.0.27"
+compileSdk = "35"
+minSdk = "29"
+# Frozen libraries. NOTE (T02 build evidence): the T00-proposed activity 1.13.0 /
+# lifecycle 2.11.0 / navigation 2.10.1 / BOM 2026.09.00 transitively require
+# compileSdk 36 + AGP 9.1.0, so with the frozen AGP 8.13.2 + compileSdk 35 they
+# cannot build. Per Main decision (option A): toolchain stays frozen, these four
+# are downgraded to the newest SDK-35-compatible set verified by build.
+room = "2.8.5"
+datastore = "1.2.1"
+activityCompose = "1.9.3"
+lifecycle = "2.8.7"
+navigationCompose = "2.7.7"
+composeBom = "2024.10.01"
+ktlint = "12.1.2"
+coroutines = "1.10.2"
+junit4 = "4.13.2"
+annotation = "1.9.1"
+# T06 Markwon chain (research markdown-renderers section 4, ADR-0004): 4.6.2 frozen.
+# Transitives accepted as-is: com.atlassian.commonmark 0.13.0, recyclerview via catalog 1.2.1.
+markwon = "4.6.2"
+recyclerview = "1.2.1"
+
+[libraries]
+annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+compose-ui = { group = "androidx.compose.ui", name = "ui" }
+compose-runtime = { group = "androidx.compose.runtime", name = "runtime" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+# Room is version-frozen here for T04; no module depends on it yet (T02 has no DB code).
+room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+junit = { group = "junit", name = "junit", version.ref = "junit4" }
+markwon-core = { group = "io.noties.markwon", name = "core", version.ref = "markwon" }
+markwon-strikethrough = { group = "io.noties.markwon", name = "ext-strikethrough", version.ref = "markwon" }
+markwon-tables = { group = "io.noties.markwon", name = "ext-tables", version.ref = "markwon" }
+markwon-tasklist = { group = "io.noties.markwon", name = "ext-tasklist", version.ref = "markwon" }
+markwon-recycler = { group = "io.noties.markwon", name = "recycler", version.ref = "markwon" }
+markwon-recycler-table = { group = "io.noties.markwon", name = "recycler-table", version.ref = "markwon" }
+recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
+compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4", version = "1.7.5" }
+compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest", version = "1.7.5" }
+test-runner = { group = "androidx.test", name = "runner", version = "1.6.2" }
+test-ext-junit = { group = "androidx.test.ext", name = "junit", version = "1.1.5" }
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }

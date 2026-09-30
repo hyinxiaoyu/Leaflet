@@ -18,6 +18,25 @@ grant-failure notice, KMP writer transaction); no new shipped dependency.
 
 Debug (reference): fullDebug 28376921 / einkDebug 28376869 (delta 52).
 
+## R3-08 rebuild (2026-09-28)
+
+The R3-05/06 defect fixes (page-turn overlap key, same-document anchor jump, external
+handler report) and the R3 test suites were rebuilt between the R2-08 baseline above and
+this record. Release size is unchanged in practice (~+1.2 KB per flavor); no shipped
+dependency was added (test-only `room-testing` stays out of `fullReleaseRuntimeClasspath`).
+
+| Artifact | Bytes | MD5 | applicationId | versionName |
+| --- | --- | --- | --- | --- |
+| `app/build/outputs/apk/full/release/app-full-release-unsigned.apk` | 22618101 | a860df58f270b6b3ce28e01bae302bee | `io.leaflet.reader` | 0.1.0 |
+| `app/build/outputs/apk/eink/release/app-eink-release-unsigned.apk` | 22617845 | e3feeeb605ec18b59f30161ed1b6582c | `io.leaflet.reader.eink` | 0.1.0-eink |
+| Delta (full − eink) | 256 | — | — | — |
+
+Debug (reference): fullDebug 28485321 (586a6f3b5a012d69e47c85dfe2048b19) / einkDebug
+28378941 (0e023c47e869de7c386c53f187fd59cf). The Full debug APK grew because the R3-06
+image test adds a debug-only fixture provider; that provider is verified absent from both
+release dexes and merged release manifests. SHA-256 values and the permission /
+test-resource-isolation checks are recorded in [r3-08-delivery.md](../plans/r3-08-delivery.md).
+
 ## Composition (fullRelease, zip entry scan)
 
 - dex 21869260 B (20.86MB; `classes.dex` 13552164 + `classes2.dex` 8317096) ≈ 96.9% of APK.

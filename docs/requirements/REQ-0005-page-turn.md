@@ -88,6 +88,22 @@ JVM tests cover the distance formula, overlap bounds, clamping, and arbitration 
 
 Requires REQ-0003 position semantics, REQ-0004 display policy, REQ-0002 visible block height, and REQ-0006 TOC positioning. T12 depends on this for mode integration acceptance.
 
+## R3 evidence (2026-09-28)
+
+The R3-05 acceptance suite measures the turn distance on the real composed viewport at 3% and 8% overlap and drives five consecutive turns, the head/tail clamps, the centre menu, long-press, link taps, and horizontal table/code scrolls. It found and fixed DEF-R3-05-01 (the tap handler captured a stale `overlap`, so a changed overlap had no effect until a mode/rotation change). See [r3-05-delivery.md](../plans/r3-05-delivery.md). Hardware ghosting/refresh remains NOT_RUN.
+
+## UX-06 evidence (2026-09-30)
+
+The reader chrome (title, notices, search bar, reading menu, progress footer) moved from the body's
+in-flow `Column` into an overlay layer over a full-height list (FR-2 becomes a real calculation: the
+measured top/bottom chrome is subtracted through `PageTurn.visibleHeightPx`, where it was previously
+always zero). The progress footer is now an anchored static bar (FR-8), the document title is shown
+only while the reading menu is open, and a one-time opaque tap-zone onboarding illustrates the three
+FR-3 zones with a mode-aware subtitle; its dismissal is persisted and the decision is the pure
+`TapZones.shouldShowHint`. Position semantics, the FR-1 distance formula, and the FR-6 no-smooth rule
+are unchanged. See [ux-06-delivery.md](../plans/ux-06-delivery.md); the instrumented acceptance tests
+compile but are NOT_RUN without a device, and E-Ink hardware remains NOT_RUN.
+
 ## Open Questions
 
 - Zone widths are unverified. KOReader grid is only a reference; T08 records equal thirds (`TapZones`), and mis-tap rate remains for T12/T13 walkthrough.

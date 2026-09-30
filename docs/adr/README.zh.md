@@ -53,11 +53,12 @@ Date:
 | ADR-0005 | EInkController Abstraction（E-Ink 控制器抽象） | `ADR-0005-eink-controller-abstraction.md` | Accepted |
 | ADR-0006 | Block Rendering, Position and Large Files（块级渲染、位置与大文件） | `ADR-0006-block-rendering-position-large-files.md` | Accepted |
 | ADR-0007 | Onyx SDK Integration（Onyx SDK 集成） | `ADR-0007-onyx-sdk-integration.md` | Proposed |
+| ADR-0008 | Indexed Directory Metadata for Browsing（为浏览索引目录元数据） | `ADR-0008-directory-index.md` | Accepted |
 
 说明：
 
-- ADR-0001–0006 为 `Accepted`：folder-first、SAF 只读访问、flavors / capabilities 分离、
-  原生渲染路线、EInkController 抽象、分块渲染与位置恢复/大文件降级均已有充分依据，
-  实施以此为准（文件名与状态与已落地的 7 份 ADR 文件一致）。
+- ADR-0001–0006 与 ADR-0008 为 `Accepted`：folder-first、SAF 只读访问、flavors / capabilities 分离、
+  原生渲染路线、EInkController 抽象、分块渲染与位置恢复/大文件降级，以及浏览用的纯路径目录元数据，
+  均已有充分依据，实施以此为准（文件名与状态与已落地的 8 份 ADR 文件一致）。
 - ADR-0007 为 `Proposed`：Onyx / 厂商 SDK 集成是 M5 事项，证据不足前不集成、
   不写假实现；待 M5 前置研究完成后定案。

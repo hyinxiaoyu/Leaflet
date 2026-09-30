@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- R3-06 test-only image source: a REAL ContentProvider that serves
+         generated PNG bytes to the instrumented image-pipeline test, so
+         LibraryImageLoader is exercised through a live ContentResolver
+         instead of a fake loader.
+         Debug source set only: release builds never declare this provider
+         (app/src/debug is not part of a release variant). -->
+    <application>
+        <provider
+            android:name="io.leaflet.reader.ui.StubImageProvider"
+            android:authorities="${applicationId}.test.images"
+            android:exported="false" />
+    </application>
+</manifest>

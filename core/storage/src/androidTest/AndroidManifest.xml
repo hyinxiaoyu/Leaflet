@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- T04 test-only stub SAF providers; never merged into release builds. -->
+    <application>
+        <provider
+            android:name="io.leaflet.storage.saf.StubProvider"
+            android:authorities="io.leaflet.storage.stub"
+            android:exported="false" />
+        <provider
+            android:name="io.leaflet.storage.saf.StubTreeProvider"
+            android:authorities="io.leaflet.storage.stub.tree"
+            android:exported="false" />
+    </application>
+</manifest>

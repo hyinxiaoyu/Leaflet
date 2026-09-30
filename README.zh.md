@@ -8,12 +8,14 @@ Leaflet 将目录视为资料库：选择本地目录，保留原始目录结构
 
 ## 当前状态
 
-**M1 E-Ink MVP — Alpha 候选（未签名、未发布）。** Android 工程已存在：双 flavor 均可构建安装，资料库 → 浏览 → 阅读 → 位置恢复闭环可用，`app/src/androidTest` 双 flavor 各 12 个生产页面用例全绿（R2-07），JVM 去重 240 用例全绿。E-Ink 实机残影/刷新无设备验证；许可证、正式 ID、签名与分发渠道待项目所有者决定。
+**M1 E-Ink MVP — Alpha 候选（未签名、未发布）。** Android 工程已存在：双 flavor 均可构建安装，资料库 → 浏览 → 阅读 → 位置恢复闭环可用。当前证据（2026-09-29）：JVM 去重 296 用例全绿；Full flavor 的 app 设备套件 85 项通过（3 项两阶段持久化用例在缺少种子阶段时按假设跳过），Eink flavor 的 75 项套件加新增 27 项交互/资源/图片用例通过；storage 17 项、Markdown 5 项。R2-07 快照为每 flavor 12 项生产页面用例、JVM 240 项。E-Ink 实机残影/刷新无设备验证；许可证、正式 ID、签名与分发渠道待项目所有者决定。
 
 - [需求迁移索引](docs/product/initial-requirements-map.md)：初始化要求的章节去向、现行文档与后置范围。
 - [M0 / M1 实施计划](docs/plans/M0-M1-implementation-plan.md)：T00–T13 任务、依赖、验收与 agent 派发模板（PLANNED 快照，实际进度见各 REQ 状态与 [R2 收敛计划](docs/plans/round-2-stabilization-plan.md)）。
+- [资料库浏览与移除计划](docs/plans/library-browse-and-remove-plan.zh.md)：逐层浏览、空目录索引和长按移除资料库均已实现。
 - [AGENTS.md](AGENTS.md)：编码 agent 开始工作前必须读取的规约。
 - [Alpha 验收 verdict](docs/plans/round-2-acceptance-verdict.md)：每条 AC 的 PASS / PARTIAL / NOT_RUN 映射、用例数、命令与未验证项。
+- [R3 交付报告](docs/plans/remaining-mvp-tasks.zh.md)：R3-05 翻页交互、R3-06 链接/图片、R3-07 大文档/搜索，以及 R3-08 软件候选证据；R3-09/R3-10 仍因缺少真机与所有者决定而阻塞。
 
 ![阅读器搜索页](docs/development/r207-screenshots/r207-search-fixed.png)
 ![阅读位置恢复](docs/development/r207-screenshots/r207-restore.png)

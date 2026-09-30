@@ -1,0 +1,25 @@
+# Gradle / Android
+.gradle/
+build/
+**/build/
+local.properties
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# IDE
+.idea/
+*.iws
+*.ipr
+.DS_Store
+
+# Harness sessions
+.kotlin/
+
+# Keystore / signing (never commit production keys)
+*.jks
+*.keystore
+
+# JVM crash dumps
+*.hprof

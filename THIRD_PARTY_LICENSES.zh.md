@@ -38,6 +38,7 @@
 | androidx.test.ext:junit（仅 instrumented） | 1.1.5 | Apache-2.0 |
 | org.jetbrains.kotlinx:kotlinx-coroutines-test | 1.10.2 | Apache-2.0 |
 | androidx.room:room-compiler（KSP，仅构建期，不打包） | 2.8.5 | Apache-2.0 |
+| androidx.room:room-testing（LT-3 迁移测试，仅 instrumented） | 2.8.5 | Apache-2.0 |
 | androidx.compose.ui:ui-test-junit4（R2-07，仅 instrumented） | 1.7.5 | Apache-2.0 |
 | androidx.compose.ui:ui-test-manifest（R2-07，instrumented + debug；不进入 release） | 1.7.5 | Apache-2.0 |
 

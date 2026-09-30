@@ -11,12 +11,14 @@ This is an Android reader project, unrelated to the JavaScript mapping library w
 
 ### Current status
 
-**M1 E-Ink MVP — Alpha candidate (unsigned and unreleased).** The Android project is in place. Both flavors build and install; the Library → Browse → Read → Restore Position flow works; the two flavors each pass 12 production-page instrumented tests (R2-07), and the deduplicated JVM suite passes 240 tests. Real-device E-Ink ghosting and refresh have not been verified. The project license, formal application ID, signing, and distribution channel remain owner decisions.
+**M1 E-Ink MVP — Alpha candidate (unsigned and unreleased).** The Android project is in place. Both flavors build and install; the Library → Browse → Read → Restore Position flow works. Current evidence (2026-09-29): the deduplicated JVM suite passes 296 tests; the Full flavor passes its 85-test app suite (3 assumption-guarded persistence tests skipped without their seed phase), the Eink flavor passes its 75-test suite plus the 27 new interaction/resource/image tests, and storage passes 17 and Markdown 5. The R2-07 snapshot was 12 production-page tests per flavor and 240 JVM tests. Real-device E-Ink ghosting and refresh have not been verified, and the project license, formal application ID, signing, and distribution channel remain owner decisions.
 
 - [Requirements migration map](docs/product/initial-requirements-map.md): where initialization requirements moved, their current documents, and deferred scope.
 - [M0 / M1 implementation plan](docs/plans/M0-M1-implementation-plan.md): T00–T13 tasks, dependencies, acceptance criteria, and agent handoff template. This is a PLANNED snapshot; current progress is recorded in REQ statuses and the [R2 stabilization plan](docs/plans/round-2-stabilization-plan.md).
+- [Library browse and removal plan](docs/plans/library-browse-and-remove-plan.md): one-level browse, empty-directory indexing, and long-press Library removal are implemented.
 - [AGENTS.md](AGENTS.md): rules that coding agents must read before starting work.
 - [Alpha acceptance verdict](docs/plans/round-2-acceptance-verdict.md): mapping of each AC to PASS / PARTIAL / NOT_RUN, test counts, commands, and unverified items.
+- [R3 delivery reports](docs/plans/remaining-mvp-tasks.md): R3-05 page interaction, R3-06 links/images, R3-07 large documents/search, and the R3-08 software candidate evidence; R3-09/R3-10 stay blocked on hardware and owner decisions.
 
 ![Reader search screen](docs/development/r207-screenshots/r207-search-fixed.png)
 ![Reading-position restoration](docs/development/r207-screenshots/r207-restore.png)

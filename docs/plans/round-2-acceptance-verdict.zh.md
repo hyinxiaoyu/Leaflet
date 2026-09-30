@@ -12,6 +12,8 @@
 
 R2-08 交付时，本文件是唯一 AC 级 verdict。每条 AC 必须映射到测试/命令/人工记录，并且只能是 PASS、PARTIAL、NOT_RUN；无覆盖不得判 PASS。环境为 emulator-5554（sdk_gphone64_arm64，Android 15/API 35）。R2-08 快照中四包通过，JVM 494 variant / 240 unique；app 双 flavor 页测各 12，storage 16、Markdown 5。当前数字见上方更新。没有 E-Ink 实机，残影/刷新一律 NOT_RUN。
 
+> **R3 状态指引（2026-09-28）：** 本文件仍为 R2-08 快照。之后的软件证据见 [MVP 剩余任务](remaining-mvp-tasks.zh.md) 中列出的 R3 交付报告：R3-05 翻页交互、R3-06 链接/图片、R3-07 大文档/搜索、R3-08 软件候选。R3-09（真机矩阵）与 R3-10（所有者发布决定）仍然阻塞。当前用例数：JVM 去重 295 项，每个 flavor 的 app 设备用例 75 项（跳过 3 项），storage 17 项，Markdown 5 项。
+
 **模拟器证据边界：** 只能证明代码路径按设计执行，不能证明 E-Ink 残影、刷新波形或真实灰度对比。
 
 ## 图例

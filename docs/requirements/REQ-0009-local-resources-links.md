@@ -91,6 +91,10 @@ Unit-test path normalization with spaces/Chinese/`../`/escape rejection, fragmen
 
 Requires REQ-0001 Library grant/URI semantics, REQ-0002 Reader rendering, REQ-0006 TOC/anchor, REQ-0005 gesture arbitration, and T09 before T10.
 
+## R3 evidence (2026-09-28)
+
+The R3-06 acceptance suite follows links on the real page and found two defects, both fixed: DEF-R3-06-01 (a missing external handler was swallowed by `runCatching`, so the no-handler notice never appeared in production) and DEF-R3-06-02 (a successful `#anchor` jump never scrolled because the pending-jump effect did not re-run). Cross-document fragments, duplicate headings, unknown anchors, out-of-tree rejection, CJK relative paths, remote placeholders, and the missing-image placeholder are now covered on the page. The real-provider image pipeline is now covered by `ReaderImagePipelineTest` (live provider, sampling inside the decode budget, pixel check, missing/revoked, cancellation) and CJK/space/`../` resolution through the real `DocumentSourceImpl` + DAO by `DocumentSourceImplTest`. The image entry's rotation/destruction recycle and a page-level CJK link tap remain NOT_RUN. See [r3-06-delivery.md](../plans/r3-06-delivery.md).
+
 ## Open Questions
 
 - T10 froze fragments as raw → percent-decode → TOC-rule slugify; the algorithm is shared with TOC, and first duplicate is best-effort.

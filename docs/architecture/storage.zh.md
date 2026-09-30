@@ -26,6 +26,11 @@ size         : Long
 lastModified : Long
 contentHash  : String?（可选；M0/M1 可为空，未来增量依据）
 
+Directory（每个已索引文件夹一行；数据库版本 2，LT-3）
+--------
+libraryId    : String（复合 PK / FK → Library.libraryId，CASCADE 删本地行；删库不删原文）
+relativePath : String（复合 PK；`/` 分隔的库内文件夹路径；不含文件正文）
+
 ReadingPosition（版本化位置，按 documentId 一行）
 --------
 documentId  : String（PK/FK → Document.documentId）
@@ -43,10 +48,10 @@ libraryId   : String（删库清理用，无 FK）
 titleSnapshot : String（删除后仍可显示的标题快照）
 lastOpenedAt: Long
 
-- 外键约束：Document → Library（CASCADE），ReadingPosition → Document（CASCADE）；RecentRead 无 FK。删 Library 级联删本地行 + repository 显式清 recents，**绝不触碰 SAF 原文**（ADR-0001）。
+- 外键约束：Document → Library（CASCADE），Directory → Library（CASCADE），ReadingPosition → Document（CASCADE）；RecentRead 无 FK。删 Library 级联删本地行 + repository 显式清 recents，**绝不触碰 SAF 原文**（ADR-0001）。
 - 原文（文件正文）不得写入任何表；数据库仅存索引、进度、设置、UI 状态类辅助数据。
 - Room schema 预留 FTS 扩展位（M4），但 M0/M1 不建 FTS 表、不做全库索引。
-- Schema 导出：`core/storage/schemas/<db-fqn>/1.json` 为迁移基线（版本变更必须带已测 Migration，见 `LeafletDatabase` KDoc）。KSP 构建怪象见 `core/storage/build.gradle.kts` 注释：从零验证前先 `./gradlew --stop` 并删模块 `build/` 目录。
+- Schema 导出入库在 `core/storage/schemas/<db-fqn>/`：`1.json`（已发布的 v1）与 `2.json`（当前 v2，新增 `directories`）。版本变更必须带已测 Migration 以及打开上一版 schema 的迁移测试（`DirectoryMigrationTest` 覆盖 1 → 2，见 `LeafletDatabase` KDoc）。重新生成 schema 使用 `core/storage/build.gradle.kts` 里记录的按需导出（`./gradlew :core:storage:kspDebugKotlin -Proom.schemaExport=true`），因为默认导出路径会触发上文提到的 Room 2.8.5 + KSP 错误。KSP 构建怪象见 `core/storage/build.gradle.kts` 注释：从零验证前先 `./gradlew --stop` 并删模块 `build/` 目录。
 
 ## 2. SAF 只读访问
 
@@ -78,8 +83,9 @@ lastOpenedAt: Long
 ### 3.4 发现与浏览
 
 - 递归元数据枚举（BFS 经 `DocumentsContract` 子文档查询）`.md / .markdown / .txt`（大小写不敏感），保留原始目录层级；空目录与不支持文件可处理（成功、0 文档）；重复添加按规范化 tree URI 去重 + UI “已存在”提示。
+- LT-3：每个访问到的子目录都以纯路径 Directory 行写入，与文档在同一个提交事务里；因此没有任何已索引文档的文件夹仍会出现在其父浏览层。浏览层把这些行与文档路径推导出的父路径片段合并。目录行遵守上面的删除提交规则（子树证据缺失时不做清理），且从不读取正文、不复制原文。
 - 排序按名忽略大小写（每目录枚举后排序，提交前按 `relativePath` 忽略大小写全排序）；深目录（18 层已测）、中途失败、慢查询、缺失元数据由 T05 provider 测试覆盖；stub tree provider 经真实 `ContentResolver` 路径实测。
-- 枚举上界（mdreader 参照，UNVERIFIED 待 T03/T13 基线重定）：访问条目总数 5000、单轮索引文档 500。超限即 FAILED + 显式原因 + 保留旧索引 + 重试入口，绝不静默截断。
+- 遍历上界（UNVERIFIED，待真机基线重定）：单次扫描最多访问 5000 个条目（目录、文件、残缺行都计数）。超限即 FAILED + 显式原因 + 保留旧索引 + 重试入口，绝不静默截断。上界之内发现的受支持文档全部索引。原先的 500 篇文档上限已去掉；那是从其他阅读器抄来、未经 Leaflet 实测的文件夹限制，不是测得的性能上限。
 
 ## 4. DataStore 分工
 

@@ -38,6 +38,7 @@ These four AndroidX versions differ from the T00 proposal (activity 1.13.0 / lif
 | androidx.test.ext:junit (instrumented only) | 1.1.5 | Apache-2.0 |
 | org.jetbrains.kotlinx:kotlinx-coroutines-test | 1.10.2 | Apache-2.0 |
 | androidx.room:room-compiler (KSP, build-only, not shipped) | 2.8.5 | Apache-2.0 |
+| androidx.room:room-testing (LT-3 migration test, instrumented only) | 2.8.5 | Apache-2.0 |
 | androidx.compose.ui:ui-test-junit4 (R2-07, instrumented only) | 1.7.5 | Apache-2.0 |
 | androidx.compose.ui:ui-test-manifest (R2-07, instrumented + debug; not in release) | 1.7.5 | Apache-2.0 |
 

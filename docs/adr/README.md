@@ -54,5 +54,6 @@ Field meanings:
 | ADR-0005 | EInkController Abstraction | `ADR-0005-eink-controller-abstraction.md` | Accepted |
 | ADR-0006 | Block Rendering, Position and Large Files | `ADR-0006-block-rendering-position-large-files.md` | Accepted |
 | ADR-0007 | Onyx SDK Integration | `ADR-0007-onyx-sdk-integration.md` | Proposed |
+| ADR-0008 | Indexed Directory Metadata for Browsing | `ADR-0008-directory-index.md` | Accepted |
 
-ADR-0001–0006 are Accepted: folder-first storage, read-only SAF, separation of flavors/capabilities, native rendering, EInkController abstraction, and block rendering with position recovery and large-file fallback have sufficient evidence. ADR-0007 remains Proposed: vendor SDK integration is an M5 item and must wait for the required evidence. Do not integrate it or create a fake implementation before then.
+ADR-0001–0006 and ADR-0008 are Accepted: folder-first storage, read-only SAF, separation of flavors/capabilities, native rendering, EInkController abstraction, block rendering with position recovery and large-file fallback, and path-only directory metadata for browsing have sufficient evidence. ADR-0007 remains Proposed: vendor SDK integration is an M5 item and must wait for the required evidence. Do not integrate it or create a fake implementation before then.

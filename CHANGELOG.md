@@ -6,6 +6,26 @@ All notable user-visible changes are recorded here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Fixed
+
+- A link to a section in the same document (`#section`) now scrolls to that section. It previously left the page where it was.
+- Opening a link to an external site on a device with no app that can handle it now shows the recoverable "no app can open this link" notice instead of doing nothing.
+- Changing the page-turn overlap setting now affects page turns immediately; previously the new overlap only took effect after a rotation or reading-mode change.
+
+### Added
+
+- The reader shows a one-time tap-zone hint on first open: an opaque overlay illustrating the previous-page, reading-menu, and next-page thirds with mode-appropriate wording. One tap anywhere, or "Got it", dismisses it, and the dismissal is remembered, so it never returns.
+- Folders that hold no Markdown or TXT file now appear while browsing a Library. The scan stores each folder's relative path only; it still never reads a file body or copies an original. A folder shows the existing empty placeholder when opened.
+
+### Changed
+
+- The reader body now fills the whole viewport. The document title, the notices, the search bar, the reading menu, and the reading-progress line float over the text instead of shrinking it, so opening or closing any of them no longer reflows the page (the E-Ink flash source) and the title no longer spends a permanent header. The progress line is a discreet anchored footer, and page turns still advance by the visible height minus the overlap, now measured against the chrome actually on screen.
+- Library browse shows one folder level at a time. Subfolders are listed before files, and each group is sorted by name. Back moves up one level.
+- Long-press a Library and confirm to remove its local index, indexed documents, indexed folders, reading positions, and recent entries. Original files stay on the device.
+- Existing installs upgrade their local index in place to database version 2. The upgrade is additive: no Library, document, reading position, or recent entry is dropped, and folder rows arrive with the next successful scan.
+
+- Library scans no longer stop at 500 documents. Every supported Markdown/TXT file found in the folder is indexed. A scan still stops explicitly, and keeps the previous index, if the folder tree contains more than 5,000 entries.
+
 ### Documentation
 
 - Internationalized the project documentation with English-primary Markdown and paired Simplified Chinese translations; kept `AGENTS.md` English-only.
