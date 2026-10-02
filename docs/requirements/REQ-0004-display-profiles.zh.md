@@ -102,6 +102,13 @@ Leaflet 有两个正交概念极易混淆：发行版本（`full`/`eink` 两个 
 
 [2026-10-01 后续审查](code-review-2026-10-01.md) 发现 `NavHost` 仍在使用导航库默认的进入/退出过渡（transition）（navigation-compose 2.7.7 中的 `fadeIn`/`fadeOut(tween(700))`，已在其字节码中确认），每次路由切换都绕过 FR-2/FR-4。`LeafletTheme` 现在将解析后的 `MotionPolicy` 发布为 `LocalMotionPolicy`，`NavHost` 从该策略显式提供全部四个过渡。FR-2 保持决策集中，§Standard 又规定 M0/M1 无页面过渡，因此两种显示模式都解析为即时切换；后续里程碑若要引入 Standard 动画策略，只需改动这一处。设备过渡采集仍为 NOT_RUN（需要在硬件上做帧级观察）。
 
+## 显示策略跟进（2026-10-02）
+
+- `DisplayProfile` 新增第十一个字段 `readingLayout`（REQ-0007 FR-13–FR-15），加在 FR-1 原有十个字段之后；两个预设都定义了它，`profileFor` 仍是唯一的构造入口。
+- FR-4 的进度节流现在是 Profile 的值：`RefreshPolicy.progressMinIntervalMs`（E-Ink 为 1 秒，Standard 为 0）驱动 Reader 页脚，采用首个立即显示、尾部合并的更新方式。资料库扫描状态此前已由 `LibraryScanner` 节流到 500 ms。
+- FR-4 的透明与 crossfade：在高对比度 Profile 下，确认对话框（`LeafletAlertDialog`）去掉平台遮罩与窗口动画，使用纯色带描边的容器；E-Ink 外层小字提升到至少 14 sp、Medium 字重；E-Ink 的 `outlineVariant` 为 `#666666`。`LeafletTheme` 还将该 Profile 发布为 `LocalDisplayProfile`，与 `LocalMotionPolicy` 并列。
+- 未验证：对话框窗口改动是否没有残留过渡，以及字重与描边选择在面板上是否清晰——两者都需要设备矩阵（T13）。
+
 ## 待确认问题
 
 - ripple“极弱”的可验证定义：T12 定案为直接 OFF（`EinkDisplayProfile.rippleEnabled = false` + Theme `LocalIndication provides null`，JVM 单测 `einkPresetDisablesEverythingAnimated` 锁定）；“极弱”变体不再保留。

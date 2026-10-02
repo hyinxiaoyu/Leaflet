@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -47,6 +48,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -59,6 +61,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -66,6 +69,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import io.leaflet.eink.DisplayModeId
 import io.leaflet.eink.EInkController
 import io.leaflet.eink.controllerForMode
+import io.leaflet.eink.profileFor
+import io.leaflet.eink.progressMinIntervalMs
+import io.leaflet.eink.progressUpdateDelayMs
 import io.leaflet.markdown.BlockKind
 import io.leaflet.markdown.ReaderStyle
 import io.leaflet.model.DisplayMode
@@ -74,6 +80,7 @@ import io.leaflet.reader.PageTurn
 import io.leaflet.reader.PositionRestore
 import io.leaflet.reader.R
 import io.leaflet.reader.ReaderFailure
+import io.leaflet.reader.ReadingLayoutResolver
 import io.leaflet.reader.ReadingMode
 import io.leaflet.reader.SettingsViewModel
 import io.leaflet.reader.TapZones
@@ -363,6 +370,12 @@ private fun ReaderContent(
             null
         }
     val isEink = displayMode == DisplayMode.EINK
+    // One display-profile seam (REQ-0004 FR-1): the typography numbers and the progress
+    // cadence below come from the profile, never from a local `if (isEink)` branch.
+    val displayProfile =
+        remember(displayMode) {
+            profileFor(if (isEink) DisplayModeId.EINK else DisplayModeId.STANDARD)
+        }
     val softWrapOn = settingsViewModel?.effectiveCodeSoftWrap(softWrapStored, isEink) ?: isEink
     val style =
         ReaderStyle(
@@ -392,6 +405,22 @@ private fun ReaderContent(
     DisposableEffect(eink, docId) {
         eink.onReaderEnter(null)
         onDispose { eink.onReaderExit(null) }
+    }
+    // Throttled footer progress (REQ-0004 FR-4, REQ-0005 FR-8): under a conservative refresh
+    // policy the footer text changes at most once per interval — the first value shows at once,
+    // a burst of block crossings collapses to one trailing update. Standard has interval 0 and
+    // reads the live block, exactly as before. The save path never reads this value.
+    val progressIntervalMs = displayProfile.refreshPolicy.progressMinIntervalMs
+    var shownFirstBlock by remember(docId) { mutableIntStateOf(listState.firstVisibleItemIndex) }
+    LaunchedEffect(docId, progressIntervalMs) {
+        if (progressIntervalMs <= 0L) return@LaunchedEffect
+        var lastShownAtMs: Long? = null
+        snapshotFlow { listState.firstVisibleItemIndex }.collectLatest { index ->
+            val wait = progressUpdateDelayMs(android.os.SystemClock.elapsedRealtime(), lastShownAtMs, progressIntervalMs)
+            if (wait > 0L) delay(wait)
+            shownFirstBlock = index
+            lastShownAtMs = android.os.SystemClock.elapsedRealtime()
+        }
     }
     var menuVisible by remember(docId) { mutableStateOf(false) }
     var tocOpen by remember(docId) { mutableStateOf(false) }
@@ -497,12 +526,28 @@ private fun ReaderContent(
     }
     // Page margin (FR-4): horizontal padding from the margin step; the title
     // and body share it so reflow is uniform.
-    val pageMarginDp = ReaderStyle.pageMarginDpForStep(style.pageMarginStep).dp
-    val fontScale = ReaderStyle.fontScaleForStep(style.fontSizeStep)
-    val lineMultiplier = ReaderStyle.lineSpacingMultiplierForStep(style.lineSpacingStep)
-    val bodyFontSize = (16 * fontScale).sp
-    val bodyLineHeight = (22 * fontScale * lineMultiplier).sp
+    // Typography, margins, measure and block rhythm come from the display profile's
+    // reading-layout policy (REQ-0007); Standard resolves to the same numbers as before.
+    val layout = ReadingLayoutResolver.resolve(style, displayProfile.readingLayout)
+    val pageMarginDp = layout.pageMarginDp.dp
+    val bodyFontSize = layout.fontSizeSp.sp
+    val bodyLineHeight = layout.lineHeightSp.sp
     val bodyFontFamily = fontFamilyFor(style.fontFamily)
+    val blockPadding = layout.blockPaddingDp.dp
+    // The measure is an em count, so it follows the font size (and the system font scale);
+    // Dp.Unspecified leaves the width unconstrained.
+    val measureMax: Dp = layout.maxMeasureSp?.let { with(LocalDensity.current) { it.sp.toDp() } } ?: Dp.Unspecified
+    val bodyTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    // High contrast: links keep the text colour and rely on their underline, instead of a
+    // chromatic link blue that becomes a mid-gray on a grayscale panel.
+    val bodyText =
+        BodyTextPolicy(
+            textColor = bodyTextColor,
+            linkColor = if (displayProfile.highContrastEnabled) bodyTextColor else null,
+            exactLineHeight = layout.exactLineHeight,
+            justify = layout.justify,
+            hyphenate = layout.hyphenate,
+        )
     // List headroom/tail reserve (UX-06, CR-20260930-01/03, CR-20261001-03).
     // - The HEADROOM reserves the notices/search bar so they can never hide body
     //   content (a first-block match cannot be scrolled clear at the document
@@ -584,6 +629,9 @@ private fun ReaderContent(
                             Modifier.fillMaxWidth().onGloballyPositioned {
                                 positionGeometry.blockTop(index, it.positionInRoot().y)
                             },
+                        // Only measure-capped text entries are narrower than the item, and they
+                        // are centred; code, tables and images fill the width as before.
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         // R2 DEF-003: the highlight is mapped against the string
                         // THIS entry renders. Markdown paragraphs render through
@@ -630,6 +678,7 @@ private fun ReaderContent(
                                     block = block,
                                     softWrap = style.codeSoftWrap,
                                     baseFontSize = bodyFontSize,
+                                    blockPadding = blockPadding,
                                     jumped = index == jumpedBlock || highlight.blockFallback,
                                     highlight = highlight,
                                     positionGeometry = positionGeometry,
@@ -640,6 +689,7 @@ private fun ReaderContent(
                                     baseFontSize = bodyFontSize,
                                     bodyFontFamily = bodyFontFamily,
                                     bodyLineHeight = bodyLineHeight,
+                                    blockPadding = blockPadding,
                                     jumped = index == jumpedBlock || highlight.blockFallback,
                                     highlight = highlight,
                                     visibleText = state.document.blockTexts.getOrElse(index) { "" },
@@ -650,6 +700,9 @@ private fun ReaderContent(
                                     baseFontSize = bodyFontSize,
                                     bodyLineHeight = bodyLineHeight,
                                     bodyFontFamily = bodyFontFamily,
+                                    blockPadding = blockPadding,
+                                    measureMax = measureMax,
+                                    bodyText = bodyText,
                                     jumped = index == jumpedBlock || highlight.blockFallback,
                                     highlight = highlight,
                                     rendered = rendered,
@@ -784,7 +837,7 @@ private fun ReaderContent(
                 // animation, recomputed from the already-observed first visible
                 // block.
                 val total = state.document.blocks.size
-                val first = listState.firstVisibleItemIndex
+                val first = if (progressIntervalMs > 0L) shownFirstBlock else listState.firstVisibleItemIndex
                 val percent = (PositionRestore.progressForBlock(first, total) * 100).toInt()
                 ReaderNavigationBar(
                     mode = mode,
@@ -957,6 +1010,7 @@ private fun CodeBlockEntry(
     block: io.leaflet.markdown.RenderBlock,
     softWrap: Boolean,
     baseFontSize: androidx.compose.ui.unit.TextUnit,
+    blockPadding: Dp,
     jumped: Boolean,
     highlight: io.leaflet.reader.BlockHighlight,
     positionGeometry: BlockPositionGeometry? = null,
@@ -971,7 +1025,7 @@ private fun CodeBlockEntry(
         }
     }
     val label = block.languageLabel.ifEmpty { stringResource(R.string.reader_code_language_unknown) }
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = blockPadding)) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(label, style = MaterialTheme.typography.labelSmall)
             Spacer(modifier = Modifier.weight(1f))
@@ -1031,6 +1085,7 @@ private fun TableBlockEntry(
     baseFontSize: androidx.compose.ui.unit.TextUnit,
     bodyFontFamily: androidx.compose.ui.text.font.FontFamily?,
     bodyLineHeight: androidx.compose.ui.unit.TextUnit,
+    blockPadding: Dp,
     jumped: Boolean,
     highlight: io.leaflet.reader.BlockHighlight,
     /** The block's visible text (`blockTexts`): the search coordinate base. */
@@ -1082,12 +1137,12 @@ private fun TableBlockEntry(
                 lineHeight = bodyLineHeight,
                 fontWeight = if (jumped) FontWeight.Bold else null,
                 softWrap = false,
-                modifier = Modifier.padding(vertical = 4.dp),
+                modifier = Modifier.padding(vertical = blockPadding),
             )
         }
         return
     }
-    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = blockPadding)) {
         TableGrid(rowCount = rows.size, columnCount = rows.maxOf { it.size }) { rowIndex, cellIndex ->
             val cell = rows[rowIndex].getOrElse(cellIndex) { "" }
             val stripped = InlineStyles.strip(cell)
@@ -1313,6 +1368,9 @@ private fun ParagraphEntry(
     baseFontSize: androidx.compose.ui.unit.TextUnit,
     bodyLineHeight: androidx.compose.ui.unit.TextUnit,
     bodyFontFamily: androidx.compose.ui.text.font.FontFamily?,
+    blockPadding: Dp,
+    measureMax: Dp,
+    bodyText: BodyTextPolicy,
     jumped: Boolean,
     highlight: io.leaflet.reader.BlockHighlight,
     // R2 DEF-003: the rendered (marker-free) text this entry shows, trimmed
@@ -1326,7 +1384,9 @@ private fun ParagraphEntry(
     onLinkTap: (io.leaflet.markdown.BlockLink) -> Unit,
     positionGeometry: BlockPositionGeometry? = null,
 ) {
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+    // `widthIn` before `fillMaxWidth`: the paragraph fills the item up to the measure cap
+    // (REQ-0007: bounded line length on wide panels) and the item centres it.
+    Column(modifier = Modifier.widthIn(max = measureMax).fillMaxWidth().padding(vertical = blockPadding)) {
         // R2 DEF-001: literal blocks (TXT chunks, PLAIN_FALLBACK degradation)
         // are shown verbatim — `# literal`, `**literal**`, `[label](target)`
         // stay visible characters, never Markdown syntax.
@@ -1339,6 +1399,7 @@ private fun ParagraphEntry(
                 baseFontSize = baseFontSize,
                 bodyLineHeight = bodyLineHeight,
                 bodyFontFamily = bodyFontFamily,
+                bodyText = bodyText,
                 positionGeometry = positionGeometry,
             )
         } else {
@@ -1397,6 +1458,7 @@ private fun SpannedTextView(
     baseFontSize: androidx.compose.ui.unit.TextUnit,
     bodyLineHeight: androidx.compose.ui.unit.TextUnit,
     bodyFontFamily: androidx.compose.ui.text.font.FontFamily?,
+    bodyText: BodyTextPolicy,
     positionGeometry: BlockPositionGeometry? = null,
 ) {
     val base = remember(block.source, block.text) { rendered }
@@ -1407,13 +1469,13 @@ private fun SpannedTextView(
     val typeface = androidTypeface(bodyFontFamily)
     androidx.compose.ui.viewinterop.AndroidView(
         factory = { context ->
-            android.widget.TextView(context).apply {
-                applyTypography(this, baseFontSize, bodyLineHeight, typeface)
+            ReaderTextView(context).apply {
+                applyTypography(this, baseFontSize, bodyLineHeight, typeface, bodyText)
             }
         },
         update = { view ->
             // DEF-002: style first, then text — both paths run on every bind.
-            applyTypography(view, baseFontSize, bodyLineHeight, typeface)
+            applyTypography(view, baseFontSize, bodyLineHeight, typeface, bodyText)
             view.text = withMarks
             var cachedLayout: android.text.Layout? = null
             var cachedLines: BlockTextLines? = null
@@ -1446,18 +1508,80 @@ private fun androidx.compose.ui.text.TextLayoutResult.blockTextLines(): BlockTex
     )
 
 /**
- * One place that applies the T09 typography to an existing [android.widget.TextView]
+ * Display-dependent text policy for the Markwon body (REQ-0007, REQ-0004 FR-1). The values
+ * come from the display profile's reading layout, so this class carries no mode of its own.
+ *
+ * @property textColor body colour from the theme; the Material Light activity theme's own
+ *   text colour is translucent black, which is not the pure black E-Ink needs.
+ * @property linkColor link colour, or null to keep the platform's own link colour.
+ * @property exactLineHeight true to set the real baseline distance instead of adding to the natural height.
+ * @property justify inter-word justification of flowing paragraphs.
+ * @property hyphenate automatic hyphenation with high-quality line breaking.
+ */
+private data class BodyTextPolicy(
+    val textColor: Int,
+    val linkColor: Int?,
+    val exactLineHeight: Boolean,
+    val justify: Boolean,
+    val hyphenate: Boolean,
+)
+
+/**
+ * A [android.widget.TextView] that remembers the platform's own wrapping and link-colour
+ * defaults, so a mode switch from E-Ink back to Standard restores exactly what the
+ * platform gave it (Standard stays byte-for-byte unchanged) instead of assuming them.
+ */
+private class ReaderTextView(context: android.content.Context) : android.widget.TextView(context) {
+    val platformBreakStrategy: Int = breakStrategy
+    val platformHyphenationFrequency: Int = hyphenationFrequency
+    val platformJustificationMode: Int = justificationMode
+    val platformLinkTextColors: android.content.res.ColorStateList = linkTextColors
+}
+
+/**
+ * One place that applies the T09 typography to an existing [ReaderTextView]
  * (R2 DEF-002): factory and update must agree, otherwise a view created
- * before a settings change keeps the old size/family/spacing forever.
+ * before a settings change keeps the old size/family/spacing forever. The
+ * same goes for the display policy: every setter below runs in both directions.
  */
 private fun applyTypography(
-    view: android.widget.TextView,
+    view: ReaderTextView,
     baseFontSize: androidx.compose.ui.unit.TextUnit,
     bodyLineHeight: androidx.compose.ui.unit.TextUnit,
     typeface: android.graphics.Typeface?,
+    policy: BodyTextPolicy,
 ) {
     view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, baseFontSize.value)
     view.typeface = typeface
+    view.setTextColor(policy.textColor)
+    if (policy.linkColor != null) {
+        view.setLinkTextColor(policy.linkColor)
+    } else {
+        view.setLinkTextColor(view.platformLinkTextColors)
+    }
+    // Justified, hyphenated text needs high-quality breaking, otherwise the greedy breaker
+    // leaves rivers; the setters relayout even for an unchanged value, so guard them.
+    val justification =
+        if (policy.justify) android.text.Layout.JUSTIFICATION_MODE_INTER_WORD else view.platformJustificationMode
+    val hyphenation =
+        if (policy.hyphenate) android.text.Layout.HYPHENATION_FREQUENCY_NORMAL else view.platformHyphenationFrequency
+    val breaking =
+        if (policy.hyphenate) android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY else view.platformBreakStrategy
+    if (view.justificationMode != justification) view.justificationMode = justification
+    if (view.hyphenationFrequency != hyphenation) view.hyphenationFrequency = hyphenation
+    if (view.breakStrategy != breaking) view.breakStrategy = breaking
+    if (policy.exactLineHeight) {
+        // Real baseline-to-baseline distance, like the Compose Text path (API 28+; minSdk is 29).
+        // Size and typeface are set above because the platform derives the extra from the font height.
+        val linePx =
+            android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP,
+                bodyLineHeight.value,
+                view.resources.displayMetrics,
+            )
+        view.setLineHeight(linePx.toInt())
+        return
+    }
     // setLineSpacing takes ADDITIONAL spacing and a multiplier in PIXELS;
     // the Compose Text used the same total height expressed in sp. Convert
     // via the view's own font scale so both paths agree at any density.

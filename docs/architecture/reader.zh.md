@@ -39,6 +39,8 @@ RecyclerView / Compose block rendering:
 （3 档 0–2，multiplier 1.00/1.25/1.50）、页边距 step（3 档 0–2 → 8/16/24dp）、soft-wrap 开关。
 全部经 DataStore 持久化（`SettingsStore` 复用 `font_size_step/font_family/line_spacing_step/page_margin_step/code_soft_wrap`
 键；Reader 经参数接收样式，不直读存储）。soft-wrap 未设置时按模式默认：E-Ink ON（FR-7），Standard 取存值。
+随显示模式变化的布局（REQ-0007 FR-13–FR-15，2026-10-02）：上述档位含义不变，但每个档位解析为多少由 `DisplayProfile.readingLayout` 经 `ReadingLayoutResolver`（`core/reader/.../ReadingLayout.kt`）决定，Reader 与设置页预览共用这一条路径；对照表见 `eink.md` §6。Standard 保持 16 sp / 8–16–24 dp / 叠加式行距 / 右侧参差；E-Ink 使用 18 sp 基准、精确的 1.45–1.80 行高、16–28–44 dp 页边距、流式正文 36 em 行宽，以及 Markdown 段落的词间两端对齐加断字。Markwon `TextView` 为 `ReaderTextView`，它记住平台自身的换行与链接颜色默认值，因此切换模式时是恢复而不是假设这些值。字面 TXT / 降级块（Compose `Text`）从不两端对齐，按原样显示。正文颜色取自主题，而不是 Activity 主题中半透明的文字颜色。断字遵循设备语言环境的规则，因此与设备语言不同的文本可能断字不佳或不断字。
+
 排版变化保当前块上下文：记录首可见块，重组后 `keepBlock` + instant `scrollToItem` 回到该块并经 `jumpToBlock`
 即时存位（复用 T08 接口；无 smooth/animated，无像素级精确承诺）。
 

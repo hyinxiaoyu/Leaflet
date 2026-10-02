@@ -22,6 +22,9 @@ interface DisplayProfile {
     val pageTurnBehavior: PageTurnBehavior
     val refreshPolicy: RefreshPolicy
     val readerDecorations: ReaderDecorations
+
+    /** Typography and page-layout numbers for the shared Reader (REQ-0007); added after REQ-0004 FR-1's original ten. */
+    val readingLayout: ReadingLayoutPolicy
 }
 
 /** Runtime mode identifier, mirroring `:core:model` DisplayMode without a model dependency. */
@@ -43,13 +46,16 @@ data class StandardDisplayProfile(
     override val refreshPolicy: RefreshPolicy = RefreshPolicy.SYSTEM_DEFAULT,
     override val readerDecorations: ReaderDecorations =
         ReaderDecorations(minimalStaticChrome = false, instantMenuVisibility = false),
+    override val readingLayout: ReadingLayoutPolicy = ReadingLayoutPolicy.STANDARD,
 ) : DisplayProfile
 
 /**
  * E-Ink preset (REQ-0004 FR-4 forced off-list): animations, smooth scroll,
  * overscroll effects, ripple, crossfade, transparency/shadow/gradient/blur and
  * infinite loading animations are all OFF. Solid colors, high contrast, static
- * text + percentage loading states, throttled progress updates.
+ * text + percentage loading states, throttled progress updates. Reading layout:
+ * larger type, tighter line spacing, wider margins, a bounded measure, justified
+ * and hyphenated text ([ReadingLayoutPolicy.EINK]).
  */
 data class EinkDisplayProfile(
     override val animationsEnabled: Boolean = false,
@@ -63,6 +69,7 @@ data class EinkDisplayProfile(
     override val refreshPolicy: RefreshPolicy = RefreshPolicy.CONSERVATIVE_FULL_REDRAW,
     override val readerDecorations: ReaderDecorations =
         ReaderDecorations(minimalStaticChrome = true, instantMenuVisibility = true),
+    override val readingLayout: ReadingLayoutPolicy = ReadingLayoutPolicy.EINK,
 ) : DisplayProfile
 
 /**

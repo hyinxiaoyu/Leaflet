@@ -99,6 +99,13 @@ supplies all four transitions explicitly from that policy. FR-2 keeps the decisi
 Standard animation policy in a later milestone changes that one place. Device transition capture
 remains NOT_RUN (it needs frame-level observation on hardware).
 
+## Display-policy follow-up (2026-10-02)
+
+- `DisplayProfile` gains an eleventh field, `readingLayout` (REQ-0007 FR-13–FR-15), added after the original ten of FR-1; both presets define it and `profileFor` stays the single construction seam.
+- FR-4 progress throttling is now a profile value: `RefreshPolicy.progressMinIntervalMs` (E-Ink 1 s, Standard 0) drives the Reader footer, with a leading-edge, coalesced-trailing update. The Library scan status was already throttled to 500 ms by `LibraryScanner`.
+- FR-4 transparency and crossfade: confirmation dialogs (`LeafletAlertDialog`) drop the platform dim and window animation and use a solid, outlined container under the high-contrast profile; E-Ink small chrome text is lifted to at least 14 sp Medium; the E-Ink `outlineVariant` is `#666666`. `LeafletTheme` also publishes the profile as `LocalDisplayProfile`, next to `LocalMotionPolicy`.
+- Unverified: whether the dialog window changes are free of residual transitions and whether the stroke and outline choices read well on a panel — both need the device matrix (T13).
+
 ## Open Questions
 
 - Ripple strength was open; T12 resolved it to OFF (`EinkDisplayProfile.rippleEnabled=false`, `LocalIndication provides null`, covered by `einkPresetDisablesEverythingAnimated`). No “very weak” variant remains.

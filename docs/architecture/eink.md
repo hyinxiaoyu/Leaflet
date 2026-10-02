@@ -15,7 +15,7 @@ This document defines the shared E-Ink policy boundary for REQ-0004/0005/0010 an
 
 The Generic controller may count refresh intents and occasionally request a system redraw. This is only a redraw cadence policy; it cannot claim REGAL/GU partial refresh or GC full refresh. MVP implements only NoOp and Generic controllers, wires policy through the app/Reader, and shows no unavailable hardware controls. Ghosting and refresh acceptance requires real 6-inch, 7-inch, and 10.3-inch E-Ink devices; emulator evidence is insufficient.
 
-Open calibration: Generic currently defaults to one full-redraw intent per 12 partial-refresh intents; T13 must validate this on hardware. Android-version coverage for BOOX remains a device-matrix item.
+Reading layout (typography, margins, measure, justification) is a profile field too, so the shared Reader never branches on the mode (§6). Open calibration: Generic currently defaults to one full-redraw intent per 12 partial-refresh intents; T13 must validate this on hardware. Android-version coverage for BOOX remains a device-matrix item.
 
 ## 1. The Four Core Types and Responsibilities
 
@@ -77,7 +77,33 @@ overlap default = 5%; REQ allows 3–8%, DataStore may tune, clamp outside range
   - About shows version/flavor/temp ID/TBD license/third-party license entry (link, not full license text) and system redraw semantics. No hardware UpdateOption/GC interval/Fast Mode controls.
 - T12 acceptance checks every disabled E-Ink effect, hot mode switch/persistence in both flavors, and no scattered brand checks in Reader.
 
+## 6. Reading Layout and Chrome Policy
+
+`DisplayProfile.readingLayout` (`ReadingLayoutPolicy`, `core/eink/.../ReadingLayoutPolicy.kt`) is an eleventh profile field, added after REQ-0004 FR-1's original ten. It holds the numbers behind typography and page layout so the shared Reader has one layout path and only the values differ per profile. `ReadingLayoutResolver` (`:core:reader`) turns the user's persisted steps plus this policy into sp/dp values; the Reader and the Settings preview both call it. Standard resolves to exactly the pre-existing numbers (pinned by `ReadingLayoutTest`).
+
+| Setting | Standard | E-Ink |
+| --- | --- | --- |
+| Body size | 16 sp × step scale (0.85–1.45) | 18 sp × step scale |
+| Line height, steps 0/1/2 | 1.375 / 1.719 / 2.063 × size, added to the font's natural height (legacy) | 1.45 / 1.60 / 1.80 × size, exact baseline distance |
+| Page margin, steps 0/1/2 | 8 / 16 / 24 dp | 16 / 28 / 44 dp |
+| Measure (line length) | uncapped | 36 em, centred; flowing text only (code, tables, images keep full width) |
+| Justification | ragged right | inter-word justified for Markdown paragraphs; literal TXT / fallback blocks stay verbatim and ragged |
+| Hyphenation | platform default | normal frequency with high-quality line breaking |
+| Block padding | 4 dp | 6 dp |
+| Chrome small text | Material 3 scale | at least 14 sp, Medium weight; body medium 16 sp, body large 18 sp |
+| Body / link colour | theme `onSurface` | theme `onSurface` (pure black); links keep the text colour and rely on their underline |
+| Divider / card outline (`outlineVariant`) | `#D0D8CE` | `#666666` (was `#999999`) |
+| Footer progress text | live | at most one visible update per second (leading edge, trailing coalesced) |
+| Confirmation dialogs | platform dim and window fade | no dim, no window animation, solid white container, 2 dp outline |
+
+Page-turn overlap is deliberately unchanged (3–8 %, default 5 %): REQ-0005 bounds it and the R3-05 acceptance tests pin it. At the default it keeps roughly one text line across a turn on a 6-inch panel; whether that is enough is a device-matrix question. Lines that end up cut at a page edge cannot be avoided without a pagination engine, which is out of MVP scope.
+
+Not changed and still open: the yellow "other match" search highlight is near-white on a grayscale panel (the current match is inverted black/white and unaffected), and the Material `TextField` caret in the search bar blinks while focused. Both need a device check before a fix is chosen.
+
+All numbers are first-principles defaults. Panel contrast, ghosting, refresh behaviour and physical legibility are unverified until the real-device matrix has run.
+
 ## Open Questions
 
 - Generic controller currently defaults to one full-redraw intent per 12 partial intents (`fullRefreshEveryNthIntent = 12`). T13 must calibrate on hardware; ghosting claims before then remain NOT_RUN/BLOCKED.
+- The E-Ink reading-layout numbers in §6 (18 sp base, 1.45–1.80 line height, 16–44 dp margins, 36 em measure, justification) are unmeasured defaults; T13 must confirm or retune them on 6-, 7- and 10.3-inch panels.
 - BOOX Android version baseline awaits physical device matrix. Research proposed minSdk 29/targetSdk 35; T02 build succeeded, but that does not establish hardware coverage.

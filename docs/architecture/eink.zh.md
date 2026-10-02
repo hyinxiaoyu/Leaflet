@@ -63,7 +63,33 @@ overlap 默认 5%，REQ 允许 3%–8%（DataStore 可调，超出范围钳制�
   - About 含版本/flavor/临时 ID/TBD 许可/第三方许可入口（文字链接，不复制全文）+ 系统刷新语义声明；设置/About 无 UpdateOption/GC 间隔/Fast Mode 硬件档位。
 - T12 验收：E-Ink 下动画、smooth scroll、overscroll、ripple、crossfade 均符合关闭策略；双 flavor 可热切模式、恢复后保持选择；Reader 无品牌判断散落。
 
+## 6. 阅读排版与外层控件策略
+
+`DisplayProfile.readingLayout`（`ReadingLayoutPolicy`，`core/eink/.../ReadingLayoutPolicy.kt`）是 REQ-0004 FR-1 原有十个字段之后新增的第十一个 Profile 字段，承载排版与页面布局背后的数值，使共享 Reader 只有一条布局路径，各 Profile 只是数值不同。`ReadingLayoutResolver`（`:core:reader`）把用户持久化的档位与该策略转换为 sp/dp 数值；Reader 与设置页预览都调用它。Standard 解析结果与原有数值完全一致（由 `ReadingLayoutTest` 锁定）。
+
+| 设置项 | Standard | E-Ink |
+| --- | --- | --- |
+| 正文字号 | 16 sp × 档位缩放（0.85–1.45） | 18 sp × 档位缩放 |
+| 行高，档位 0/1/2 | 1.375 / 1.719 / 2.063 × 字号，叠加在字体自然高度上（沿用旧行为） | 1.45 / 1.60 / 1.80 × 字号，精确基线间距 |
+| 页边距，档位 0/1/2 | 8 / 16 / 24 dp | 16 / 28 / 44 dp |
+| 行宽（measure） | 不限制 | 36 em，居中；仅作用于流式正文（代码、表格、图片保持全宽） |
+| 两端对齐 | 左对齐（右侧参差） | Markdown 段落按词间距两端对齐；字面 TXT / 降级块保持原样、右侧参差 |
+| 断字 | 平台默认 | 正常频率并使用高质量断行 |
+| 块间距 | 4 dp | 6 dp |
+| 外层小字 | Material 3 字阶 | 至少 14 sp、Medium 字重；bodyMedium 16 sp、bodyLarge 18 sp |
+| 正文 / 链接颜色 | 主题 `onSurface` | 主题 `onSurface`（纯黑）；链接沿用正文颜色，靠下划线区分 |
+| 分隔线 / 卡片边框（`outlineVariant`） | `#D0D8CE` | `#666666`（原 `#999999`） |
+| 页脚进度文字 | 实时 | 每秒至多一次可见更新（首个立即显示，突发变化合并为一次尾部更新） |
+| 确认对话框 | 平台遮罩与窗口淡入淡出 | 无遮罩、无窗口动画、纯白容器、2 dp 描边 |
+
+翻页重叠量刻意保持不变（3–8%，默认 5%）：REQ-0005 约束了范围，R3-05 验收测试也锁定了该值。默认值下在 6 英寸屏上翻页后大约保留一行文字；够不够属于真机矩阵问题。页面边缘出现被截断的文字行在没有分页引擎的前提下无法避免，而分页引擎不在 MVP 范围内。
+
+未改动、仍待确认：黄色的“其他匹配项”搜索高亮在灰度屏上近乎白色（当前匹配项是黑白反色，不受影响），搜索栏 Material `TextField` 聚焦时光标闪烁。两者都需要先做设备检查再选定方案。
+
+所有数值均为基于原理的默认值。面板对比度、残影、刷新表现和实际可读性在真机矩阵运行之前均未验证。
+
 ## Open Questions
 
 - GC 节奏 N 的默认值：`GenericEInkController` 默认 12（`fullRefreshEveryNthIntent = 12`），待 T13 实机矩阵校准；此前任何残影结论标 NOT_RUN / BLOCKED。
+- §6 中 E-Ink 的阅读排版数值（18 sp 基准、1.45–1.80 行高、16–44 dp 页边距、36 em 行宽、两端对齐）均为未实测的默认值；T13 须在 6、7、10.3 英寸面板上确认或重新调校。
 - BOOX Android 版本基线（待真机矩阵；minSdk 29 ＋ target 35 组合已在 research 论证，T02 构建验证通过）。

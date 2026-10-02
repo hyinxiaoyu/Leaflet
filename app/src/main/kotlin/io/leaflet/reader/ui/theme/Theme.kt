@@ -16,6 +16,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import io.leaflet.eink.DisplayModeId
 import io.leaflet.eink.DisplayProfile
+import io.leaflet.eink.EinkDisplayProfile
 import io.leaflet.eink.MotionPolicy
 import io.leaflet.eink.profileFor
 import io.leaflet.model.DisplayMode
@@ -32,6 +33,18 @@ import io.leaflet.model.DisplayMode
 val LocalMotionPolicy =
     staticCompositionLocalOf {
         MotionPolicy(animationsAllowed = false)
+    }
+
+/**
+ * The resolved [DisplayProfile] for the display mode this theme was built with, for screens
+ * that need a visual-policy decision other than motion (high contrast, for example) without
+ * re-deriving the mode → profile mapping. Like [LocalMotionPolicy], the default is the most
+ * conservative preset, so a screen composed outside [LeafletTheme] never shows a scrim,
+ * translucency or animation.
+ */
+val LocalDisplayProfile =
+    staticCompositionLocalOf<DisplayProfile> {
+        EinkDisplayProfile()
     }
 
 /**
@@ -80,10 +93,11 @@ fun LeafletTheme(
                 OverscrollConfiguration(glowColor = Color.Transparent)
             }
         }
-    MaterialTheme(colorScheme = scheme) {
+    val typography = remember(profile) { leafletTypography(profile.highContrastEnabled) }
+    MaterialTheme(colorScheme = scheme, typography = typography) {
         // The resolved policy is published for screens that own a transition or
         // animation (NavHost, for example) instead of re-deriving the mode.
-        CompositionLocalProvider(LocalMotionPolicy provides motion) {
+        CompositionLocalProvider(LocalMotionPolicy provides motion, LocalDisplayProfile provides profile) {
             if (motion.animationsAllowed) {
                 content()
             } else {
@@ -137,7 +151,9 @@ internal fun leafletColorScheme(
                 errorContainer = Color(0xFFEEEEEE),
                 onErrorContainer = Color.Black,
                 outline = Color.Black,
-                outlineVariant = Color(0xFF999999),
+                // Dividers and card borders are 1 dp lines: a mid-gray that thin dithers away on
+                // an E-Ink panel, so the variant outline stays a dark gray.
+                outlineVariant = Color(0xFF666666),
                 scrim = Color.Black,
                 surfaceBright = Color.White,
                 surfaceDim = Color(0xFFEEEEEE),

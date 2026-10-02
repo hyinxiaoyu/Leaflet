@@ -29,12 +29,16 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.leaflet.eink.AppCapabilities
+import io.leaflet.eink.DisplayModeId
+import io.leaflet.eink.profileFor
 import io.leaflet.markdown.ReaderStyle
 import io.leaflet.model.DisplayMode
 import io.leaflet.reader.R
+import io.leaflet.reader.ReadingLayoutResolver
 import io.leaflet.reader.SettingsStore
 import io.leaflet.reader.SettingsViewModel
 import io.leaflet.storage.prefs.ReaderSettings
@@ -61,9 +65,17 @@ fun SettingsScreen(
     val margin by viewModel.pageMarginStep.collectAsState(initial = ReaderSettings.PAGE_MARGIN_DEFAULT)
     val wrapStored by viewModel.codeSoftWrap.collectAsState(initial = null)
     val wrap = viewModel.effectiveCodeSoftWrap(wrapStored, mode == DisplayMode.EINK)
-    val sizeSp = 16f * ReaderStyle.fontScaleForStep(fontSize)
+    // The preview resolves through the same display-profile policy as the production Reader
+    // (REQ-0007), so what it shows is what the Reader will use on this display. The step labels
+    // below stay relative multipliers so they read the same in both modes.
+    val layout =
+        ReadingLayoutResolver.resolve(
+            ReaderStyle(fontSizeStep = fontSize, lineSpacingStep = spacing, pageMarginStep = margin).coerce(),
+            profileFor(if (mode == DisplayMode.EINK) DisplayModeId.EINK else DisplayModeId.STANDARD).readingLayout,
+        )
+    val sizeSp = layout.fontSizeSp
     val lineMultiplier = ReaderStyle.lineSpacingMultiplierForStep(spacing)
-    val marginDp = ReaderStyle.pageMarginDpForStep(margin)
+    val marginDp = layout.pageMarginDp
     val bodyFamily =
         when (family) {
             "serif" -> FontFamily.Serif
@@ -90,7 +102,8 @@ fun SettingsScreen(
                         stringResource(R.string.settings_preview_body),
                         fontFamily = bodyFamily,
                         fontSize = sizeSp.sp,
-                        lineHeight = (22f * ReaderStyle.fontScaleForStep(fontSize) * lineMultiplier).sp,
+                        lineHeight = layout.lineHeightSp.sp,
+                        textAlign = if (layout.justify) TextAlign.Justify else TextAlign.Unspecified,
                         modifier = Modifier.padding(horizontal = marginDp.dp, vertical = 16.dp).testTag(SettingsTags.PREVIEW_TEXT),
                     )
                 }

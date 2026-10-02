@@ -91,6 +91,17 @@ Requires REQ-0003 position preservation after reflow, REQ-0005 page/gesture arbi
 - T09 chose a fixed system-font allowlist (`system/sans-serif/serif`; monospace only for code). OEM family queries differ and remain unverified. Android `Typeface` constants resolve all three. Single-font devices must not show fake choices.
 - Markwon's default table limits (`markdown-renderers.md` S5) are bypassed by the app's native cell grid. UX-07 now synchronizes widths from actual styled cells; NORMAL horizontal reachability remains covered. Real-device readability and link taps remain unverified until T13.
 
+## E-Ink typography and layout policy (2026-10-02)
+
+Typography, margins, measure and justification now come from the active display profile (`DisplayProfile.readingLayout`; values in [eink.md](../architecture/eink.md) §6) instead of fixed Reader constants. The persisted steps, their counts (5 / 3 / 3) and their ranges are unchanged, and Standard resolves to the same numbers as before.
+
+- **FR-13:** Body size, line height and page margin for each persisted step are resolved through the profile's reading-layout policy; the Reader and the Settings preview use the same resolver. Every step stays visibly distinct (FR-1/FR-3/FR-4) under each profile, and a line height never falls below the font size.
+- **FR-14:** Under the E-Ink profile, flowing text is capped at 36 em (centred), so wide panels do not run 100+ characters per line; the cap scales with the font size. Code, tables and images keep the full width.
+- **FR-15:** Under the E-Ink profile, Markdown paragraphs are inter-word justified with hyphenation and high-quality line breaking; literal TXT / fallback blocks are not justified. Standard keeps the platform's wrapping defaults, including after a switch back from E-Ink. Body text uses the theme's text colour (pure black on E-Ink).
+- **AC-10:** On a 6-inch E-Ink device, default steps show the E-Ink numbers (18 sp base, 1.60 line height, 28 dp margins); on a 10.3-inch device the line stays within about 36 em. **NOT_RUN** — no device and no toolchain on the authoring host.
+- **AC-11:** A Standard-mode reader still shows 16 sp, the legacy line spacing and the platform's wrapping defaults. Covered by `ReadingLayoutTest` and `ReaderEinkTypographyTest`; **NOT_RUN** here. Restoring those defaults after a runtime E-Ink → Standard switch is implemented (`ReaderTextView`) but has no automated test yet.
+- Legibility, contrast, ghosting and page-turn comfort of these defaults are unverified until the E-Ink device matrix (T13) has run; the numbers are first-principles defaults to be confirmed or retuned there.
+
 ## UX-07 acceptance clarification (2026-09-30)
 
 - **FR-11 / AC-8:** All rows share column widths measured from styled cell content, including headers and inline formatting. Empty cells retain their grid slot; rows share cell height. Draw 1 dp grid dividers and a 2 dp divider below the header. Wide tables remain horizontally reachable without page turns.

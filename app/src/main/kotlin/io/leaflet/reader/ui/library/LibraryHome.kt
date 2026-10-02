@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +41,7 @@ import io.leaflet.reader.ui.reader.RecentReadRow
 import io.leaflet.reader.ui.reader.RecentRow
 import io.leaflet.reader.ui.reader.RecentViewModel
 import io.leaflet.reader.ui.reader.recentSubtitle
+import io.leaflet.reader.ui.theme.LeafletAlertDialog
 import io.leaflet.storage.ScanState
 
 object HomeTags {
@@ -115,7 +115,7 @@ internal fun LibraryHomeContent(
 ) {
     var confirmingClear by remember { mutableStateOf(false) }
     state.pendingRemoval?.let { pending ->
-        AlertDialog(
+        LeafletAlertDialog(
             onDismissRequest = onDismissRemove,
             title = { Text(stringResource(R.string.library_remove_title)) },
             text = { Text(stringResource(R.string.library_remove_body, pending.displayName)) },
@@ -124,7 +124,7 @@ internal fun LibraryHomeContent(
         )
     }
     if (confirmingClear) {
-        AlertDialog(
+        LeafletAlertDialog(
             onDismissRequest = { confirmingClear = false },
             title = { Text(stringResource(R.string.home_clear_title)) },
             text = { Text(stringResource(R.string.home_clear_body)) },

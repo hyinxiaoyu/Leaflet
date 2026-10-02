@@ -49,6 +49,7 @@ All notable user-visible changes are recorded here. Format follows [Keep a Chang
 
 ### Changed
 
+- E-Ink reading typography and layout: the E-Ink display mode now reads at a larger base size (18 sp), tighter exact line spacing, wider page margins, a bounded line length of about 36 em on large panels, and justified, hyphenated paragraphs; body text is pure black and links keep the text colour with an underline. Standard keeps its current look. Small interface text is larger and heavier on E-Ink, the divider and card outline is darker, the reader's progress footer updates at most once per second, and confirmation dialogs no longer dim the page or fade in. Page-turn overlap is unchanged. These are first-principles defaults: contrast, ghosting, refresh and legibility on a physical E-Ink panel are not verified yet.
 - Home now brings continuing a document, folders, reading history and navigation into one lazy scroll. First-use guidance appears only after folder loading completes; failed local-index loading has a retry action, and clearing history asks for confirmation.
 - Reading settings show actual typography values and an immediate preview, with uniform selected controls. The shared shell reserves system-bar/cutout space, matches system-bar icon contrast to the display mode, and supplies a complete grayscale E-Ink palette.
 
