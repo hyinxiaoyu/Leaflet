@@ -1,0 +1,6 @@
+PASS paired structure, code fences and actual Markdown links: docs/requirements/REQ-0005-page-turn.md
+PASS paired structure, code fences and actual Markdown links: docs/plans/page-turn-interaction-followup.md
+PASS paired structure, code fences and actual Markdown links: docs/requirements/README.md
+PASS paired structure, code fences and actual Markdown links: CHANGELOG.md
+PASS current source hashes match executed checks
+PASS temporary compiler/resource/Gradle outputs removed; declared evidence retained

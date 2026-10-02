@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Simplified Chinese counterparts for the UX-05/NB-02..NB-04 browsing slice
+  (REQ-0012 FR-7). This file intentionally covers only the strings that slice
+  introduces or routes through resources; full English/Simplified Chinese
+  parity for the legacy strings is UX-10's deliverable (REQ-0010/UX-10), which
+  also removes the `MissingTranslation` suppression in `values/strings.xml`.
+-->
+<resources>
+    <string name="library_breadcrumb_root">资料库</string>
+    <string name="library_breadcrumb_separator">›</string>
+    <string name="library_breadcrumb_current">当前文件夹</string>
+    <string name="library_row_folder">文件夹</string>
+    <string name="library_row_document">文档</string>
+    <string name="library_scan_progress">已扫描 %1$d 项</string>
+    <string name="library_scan_progress_dir">已扫描 %1$d 项 · %2$s</string>
+    <!-- Status-region actions and the browse back button: touched by this
+         slice, so their Chinese text lands here too. -->
+    <string name="scan_refresh">刷新</string>
+    <string name="scan_retry">重试</string>
+    <string name="scan_cancel">取消</string>
+    <string name="scan_failed_kept">扫描未完成，已保留上次完整结果，未删除任何条目。</string>
+    <string name="scan_cancelled_kept">已取消，正在显示上次完整结果。</string>
+    <string name="go_back">返回</string>
+
+    <!-- Daily reading Home and settings (REQ-0013). -->
+    <string name="home_subtitle">从你的文件夹，开始阅读</string>
+    <string name="home_continue_title">接着上次读</string>
+    <string name="home_continue_action">继续阅读</string>
+    <string name="home_open_recovery">查看恢复选项</string>
+    <string name="home_folders_count">我的文件夹 · %1$d</string>
+    <string name="home_empty_title">从一个文件夹开始</string>
+    <string name="home_empty_body">选择包含 Markdown 或 TXT 文档的文件夹。Leaflet 保留目录结构，直接阅读原文件。</string>
+    <string name="home_files_stay">原始文件始终保留在你的文件夹中。</string>
+    <string name="home_browse_folder">点击浏览 · 长按管理</string>
+    <string name="home_updating">正在更新这个文件夹…</string>
+    <string name="home_clear_title">清空阅读历史？</string>
+    <string name="home_clear_body">只移除最近阅读记录，保留原文件和已保存的阅读位置。</string>
+    <string name="recent_time_now">刚刚</string>
+    <string name="recent_time_minutes">%1$d 分钟前</string>
+    <string name="recent_time_hours">%1$d 小时前</string>
+    <string name="recent_time_days">%1$d 天前</string>
+    <string name="settings_saved_note">修改会自动保存。</string>
+    <string name="settings_display_heading">显示</string>
+    <string name="settings_reading_heading">阅读</string>
+    <string name="settings_typography_heading">排版</string>
+    <string name="settings_preview_title">阅读预览</string>
+    <string name="settings_preview_body">让阅读更舒适。调整文字大小、字体与行距，找到适合自己的排版，再回到文档。</string>
+    <string name="settings_font_size_actual">%1$.1f sp</string>
+    <string name="settings_spacing_actual">%1$.2f 倍</string>
+    <string name="settings_margin_actual">%1$d dp</string>
+    <string name="settings_decrease">减小%1$s</string>
+    <string name="settings_increase">增大%1$s</string>
+    <string name="settings_selected">已选中</string>
+
+    <!-- Existing labels surfaced by the daily reading journey. -->
+    <string name="library_title">资料库</string>
+    <string name="library_add">添加文件夹</string>
+    <string name="library_remove_title">移除资料库？</string>
+    <string name="library_remove_body">移除 %1$s 的本地索引，原始文件仍留在设备上。</string>
+    <string name="library_remove_confirm">移除</string>
+    <string name="dismiss">关闭</string>
+    <string name="go_settings">设置</string>
+    <string name="go_about">关于</string>
+    <string name="recent_title">最近阅读</string>
+    <string name="recent_unknown_library">来源文件夹暂未识别</string>
+    <string name="recent_gone_hint">文件已移动、重命名或删除。记录仍保留，可查看恢复选项或移除记录。</string>
+    <string name="recent_auth_lost_hint">文件夹访问权限已丢失。打开文档后可重新授权。</string>
+    <string name="recent_clear_all">清空历史</string>
+    <string name="reader_remove_dead_entry">移除记录</string>
+    <string name="settings_title">阅读设置</string>
+    <string name="mode_standard">普通屏幕</string>
+    <string name="mode_eink">墨水屏</string>
+    <string name="reading_mode_continuous">连续滚动</string>
+    <string name="reading_mode_page_turn">逐屏翻页</string>
+    <string name="typography_font_size">字号</string>
+    <string name="typography_font_family">字体</string>
+    <string name="typography_font_system">系统默认</string>
+    <string name="typography_font_sans">无衬线</string>
+    <string name="typography_font_serif">衬线字体</string>
+    <string name="typography_line_spacing">行距</string>
+    <string name="typography_page_margin">页边距</string>
+    <string name="typography_soft_wrap_on">代码自动换行</string>
+    <string name="typography_soft_wrap_off">代码横向滚动</string>
+    <string name="home_loading">正在打开你的资料库…</string>
+    <string name="home_load_failed">暂时无法加载资料库。重试以重新连接本地索引，原文件不受影响。</string>
+    <string name="reader_hint_page_turn">点击左侧三分之一区域上一屏，中间区域打开阅读菜单，右侧区域下一屏。向左滑下一屏，向右滑上一屏；松手后翻页。</string>
+    <string name="reader_previous_screen">上一屏</string>
+    <string name="reader_next_screen">下一屏</string>
+    <string name="reader_open_menu">菜单</string>
+    <string name="reader_close_menu">收起菜单</string>
+    <string name="reader_controls_help">操作说明</string>
+    <string name="reader_toc">目录</string>
+    <string name="reader_search">搜索</string>
+    <string name="reader_refresh">重新载入</string>
+    <string name="reader_mode_continuous">连续滚动</string>
+    <string name="reader_mode_page_turn">逐屏翻页</string>
+    <string name="reader_hint_title">阅读操作</string>
+    <string name="reader_hint_continuous">上下滑动阅读，点击中间区域打开菜单。</string>
+    <string name="reader_hint_prev">上一屏</string>
+    <string name="reader_hint_menu">阅读菜单</string>
+    <string name="reader_hint_next">下一屏</string>
+    <string name="reader_hint_got_it">开始阅读</string>
+</resources>

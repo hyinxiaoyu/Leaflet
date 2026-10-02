@@ -1,0 +1,73 @@
+{
+  "id": "PRODUCT-WAVE1-20261001",
+  "recorded_at": "2026-10-01T19:24:09.767227+08:00",
+  "scope": "daily reading Home, settings preview/choices, system-bar/cutout bounds, monochrome E-Ink tokens",
+  "user_preference": "daily reading loop",
+  "verdict": "IMPLEMENTED_SCOPED_JVM_RESOURCES_COMPILATION_VERIFIED_UI_PENDING",
+  "jvm": {
+    "executed": 9,
+    "passed": 9,
+    "failed": 0
+  },
+  "resources": [
+    {
+      "flavor": "full",
+      "resource_link": 0,
+      "r_compile": 0
+    },
+    {
+      "flavor": "eink",
+      "resource_link": 0,
+      "r_compile": 0
+    }
+  ],
+  "component_compilation": [
+    {
+      "flavor": "full",
+      "main": 0,
+      "pages": 0,
+      "resources": 0
+    },
+    {
+      "flavor": "eink",
+      "main": 0,
+      "pages": 0,
+      "resources": 0
+    }
+  ],
+  "changed_ktlint": "PASS",
+  "new_copy_language_pairs_checked": 29,
+  "page_cases": {
+    "defined": 6,
+    "executed": 0,
+    "status": "NOT_RUN_SOCKET_RESTRICTION"
+  },
+  "full_gradle_gates": "NOT_RUN_SOCKET_RESTRICTION",
+  "apk_assembly": "NOT_RUN",
+  "screenshots": "NOT_CAPTURED",
+  "eink_hardware": "NOT_RUN",
+  "talkback": "NOT_RUN",
+  "source_sha256": {
+    "app/src/main/kotlin/io/leaflet/reader/MainActivity.kt": "4eaac8a3f8d90cb1e38fc6e4d919f85e62d7455e044fdfb2722e559a20ebe7dc",
+    "app/src/main/kotlin/io/leaflet/reader/ui/LeafletNav.kt": "0890c08b49b37446bcc1b9266b4cad6d5260887eade2ae816ed103d492a91a0e",
+    "app/src/main/kotlin/io/leaflet/reader/ui/ReadingSettings.kt": "c37ce4a15a34b2f7e72ade0a65e8c731994b122e0aef228f7a5deff46963f9f8",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/LibraryHome.kt": "9b1ae6f71e2b2114bafbf07663e09c3e2772badc6f115102e7c12ab1dbfb6aa6",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/LibraryViewModel.kt": "19a1501d3c2c4933c255cd0e9e76e4df27e535d9899da22c5e0751eecf343fc7",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/LibraryScreens.kt": "65cd93b73391190fef415c3a7605f060f1df02e9f309c13771624d6d0da58ad1",
+    "app/src/main/kotlin/io/leaflet/reader/ui/reader/RecentSection.kt": "65c6fe46c659984733735f133c7bd81863cfb8d8ede59c14d0e36419987cbe6b",
+    "app/src/main/kotlin/io/leaflet/reader/ui/theme/Theme.kt": "96f4de69d05afd3fb7401776a1d5ade1467a394d9d146a3445d6b8cf2eea6286",
+    "app/src/main/res/values/strings.xml": "c582ac2d429c850766ee947573b25b52f71a57383efb2cf5e4273224134427a2",
+    "app/src/main/res/values-zh/strings.xml": "a147fa18f56a56fbdb3f8c8f2e41338eb2e954f20b19b7cbca5fb6a6c4e5c5a5",
+    "app/src/androidTest/kotlin/io/leaflet/reader/ui/DailyReadingPageTest.kt": "a01605173659caee9ce5119db160d52dd1468e438e898794ee516e0b19f9cbce",
+    "app/src/test/kotlin/io/leaflet/reader/ui/library/LibraryHomeLoadTest.kt": "a7483bf3933162153f3dd455fa713ecef78dae4e6245ff58cb5d8ced4b127b94",
+    "app/src/test/kotlin/io/leaflet/reader/ui/theme/ColorSchemeTest.kt": "9bfb18e128821dabf27b2a5144f6846fdd28840a9f104ee1d917699b48549b57"
+  },
+  "temporary_root": "/tmp/leaflet-product-wave1.KM2uPO",
+  "cleanup": "COMPLETE: resource/compiler outputs, dependency archives, formatter and temporary logs removed; declared evidence retained",
+  "navigation_regressions": {
+    "ordinary_passed": 24,
+    "independent_passed": 2,
+    "failed": 0
+  },
+  "total_focused_jvm_executions": 35
+}

@@ -1,0 +1,14 @@
+JUnit version 4.13.2
+.E
+Time: 0.081
+There was 1 failure:
+1) aQueuedRenderedRootTapKeepsItsOriginalLibrary(io.leaflet.reader.ui.library.CompiledBreadcrumbCallbackProbe)
+java.lang.AssertionError: the actual old UI callback must retain A's origin instead of reading live B state expected:<LibraryBrowseUiState(libraryId=B, displayName=, documents=[], directories=[Docs, Docs/Notes], prefix=Docs/Notes, progress=ScanProgress(libraryId=, state=IDLE, scannedFiles=0, currentDir=, entryErrors=0, message=null))> but was:<LibraryBrowseUiState(libraryId=B, displayName=, documents=[], directories=[Docs, Docs/Notes], prefix=, progress=ScanProgress(libraryId=, state=IDLE, scannedFiles=0, currentDir=, entryErrors=0, message=null))>
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at io.leaflet.reader.ui.library.CompiledBreadcrumbCallbackProbe.aQueuedRenderedRootTapKeepsItsOriginalLibrary(CompiledBreadcrumbCallbackProbe.kt:49)
+
+FAILURES!!!
+Tests run: 1,  Failures: 1
+

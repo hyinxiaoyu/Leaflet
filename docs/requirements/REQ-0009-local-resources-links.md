@@ -101,3 +101,25 @@ The R3-06 acceptance suite follows links on the real page and found two defects,
 - T10's initial image decode cap is 12 MiB (`ImageSample.MAX_DECODE_BYTES`), still unverified until T13/REQ-0011 measurements.
 - T10 froze unsupported non-MD/TXT targets as a media notice, not rendered content.
 - Cross-Library links are rejected by default; changing this requires a new REQ.
+
+## UX-07 acceptance clarification (2026-09-30)
+
+- **FR-12 / AC-9:** Display decoded images without upscaling: physical decoded pixel dimensions are converted to dp using device density. Proportionally reduce to the available width or 320 dp height, whichever is limiting. Do not clamp the aspect ratio of tall or panoramic images.
+- Verification and screenshots are recorded in [ux-07-delivery.md](../plans/ux-07-delivery.md). SAF resolution, decode sampling, resource lifecycle, and remote-image placeholders keep their existing contracts; hardware readability remains unverified.
+
+## Code review follow-up (2026-09-30)
+
+FR-10 no longer gates the external handoff on `Intent.resolveActivity(packageManager)`. Android 11+
+package visibility can hide a handler that is still launchable, so a resolution-based preflight could
+report "no handler" for an installed browser and suppress the handoff entirely. The app now launches
+the `ACTION_VIEW` Intent and keeps the existing `ActivityNotFoundException` recovery path, which is
+the documented approach; no `<queries>` declaration is needed because no query is made. The
+recoverable "no external app" notice is unchanged. See
+[code-review-2026-09-30.md](../plans/code-review-2026-09-30.md) (CR-20260930-04); the discriminating
+device scenario — an installed handler the app cannot query — remains NOT_RUN.
+
+## Round-3 navigation ownership fix (2026-10-01)
+
+Relative-link resolution now owns a document, load generation, and navigation ticket. A newer link, document open/reload, or Reader exit cancels superseded work; late success/failure cannot navigate or attach a notice to another document. A handed-off fragment is consumed only by its destination and survives source disposal before destination loading. Shared position/fragment initialization gives an incoming anchor precedence over the destination's saved position.
+
+JVM regressions verify delayed resolution after switching/exit and legitimate fragment handoff, including rejection of unrelated consumers. See [round-3 repair evidence](../plans/code-review-2026-10-01-round-3.md). Real NavController/SAF/device acceptance remains unverified; no link type or network operation is added.

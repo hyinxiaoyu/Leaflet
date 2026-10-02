@@ -1,0 +1,69 @@
+{
+  "acceptance_id": "NAV-FOLLOWUP-20261001",
+  "recorded_at": "2026-10-01T16:52:56.221052+08:00",
+  "verdict": "FOCUSED_FIX_VERIFIED_UI_ACCEPTANCE_PENDING",
+  "previous_acceptance": "NAV-ACC-20261001",
+  "head": "5a754292c1ea02f33af0cb917f5cf24c29dbb763",
+  "focused_jvm": {
+    "existing_passed": 24,
+    "independent_probes_passed": 2,
+    "failed": 0
+  },
+  "production_callback_before": {
+    "executed": 1,
+    "failed": 1,
+    "flavor": "full"
+  },
+  "production_callback_after": {
+    "full_passed": 1,
+    "eink_passed": 1,
+    "failed": 0,
+    "scope": "actual compiler-generated UI callback; no Android views or pointer dispatch"
+  },
+  "component_compilation": [
+    {
+      "flavor": "full",
+      "main_exit": 0,
+      "page_exit": 0,
+      "compiled_callback_tests_passed": 1,
+      "dependency_jars": 122
+    },
+    {
+      "flavor": "eink",
+      "main_exit": 0,
+      "page_exit": 0,
+      "compiled_callback_tests_passed": 1,
+      "dependency_jars": 122
+    }
+  ],
+  "changed_file_ktlint": {
+    "version": "1.0.1",
+    "exit_code": 0,
+    "files": [
+      "app/src/main/kotlin/io/leaflet/reader/ui/library/LibraryScreens.kt",
+      "app/src/androidTest/kotlin/io/leaflet/reader/ui/LibraryBrowsePageTest.kt"
+    ],
+    "compose_function_naming_exception": true
+  },
+  "android_page_tests": {
+    "defined_methods": 12,
+    "executed": 0,
+    "status": "BLOCKED_ADB_SOCKET"
+  },
+  "gradle": "BLOCKED_FileLockContentionHandler_SOCKET",
+  "apk_assembly": "NOT_RUN",
+  "full_lint_and_ktlint": "NOT_RUN",
+  "eink_hardware": "NOT_RUN",
+  "talkback": "NOT_RUN",
+  "source_sha256": {
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/LibraryScreens.kt": "4cde6abe0d4530ab367ba7874d725b27de270f8f19ec5da66995014ef7b742fe",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/LibraryViewModel.kt": "f4021db0541ac5a23e583dfb676e5d02d1e4b3b078fa186b63a3ef44a8db7579",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/Breadcrumbs.kt": "e63d06c2b20c9b24bddf7b64e62e5e7cf9aba99afd5e9148e3eb425b32698795",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/BrowseLevel.kt": "c709b859cccaa1b990117b67cf749fd77e99dfb0332a34289d63311e5197a1ef",
+    "app/src/androidTest/kotlin/io/leaflet/reader/ui/LibraryBrowsePageTest.kt": "eafd9a012976c79638593b84b951f27ff31663ebf25b908b71e77aeed6db0403",
+    "app/src/test/kotlin/io/leaflet/reader/ui/library/LibraryScanCancelTest.kt": "04a7a41f65caeffbca8b11093dc8502811ceccecb2db8e39e9572624b5b08c2a",
+    "app/src/test/kotlin/io/leaflet/reader/ui/library/LibraryAncestorNavigationTest.kt": "29ef1a6b7c6bb80ef1ef641d0eb9b61e449315d617ee28d0f8892c6f78a70d9a"
+  },
+  "temporary_root": "/tmp/leaflet-navigation-followup.2xdLrQ",
+  "cleanup": "COMPLETE: task temporary root removed; JVM scratch directories self-cleaned"
+}

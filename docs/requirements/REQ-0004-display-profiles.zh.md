@@ -98,6 +98,10 @@ Leaflet 有两个正交概念极易混淆：发行版本（`full`/`eink` 两个 
 - T02（flavor、最小策略、CI）；REQ-0005（翻页行为经 `pageTurnBehavior`）、REQ-0002/0003（加载态与恢复滚动经策略）。
 - 被依赖：T12 设置/About 完整化、T13 发布候选。
 
+## 代码审查跟进（2026-10-01）
+
+[2026-10-01 后续审查](code-review-2026-10-01.md) 发现 `NavHost` 仍在使用导航库默认的进入/退出过渡（transition）（navigation-compose 2.7.7 中的 `fadeIn`/`fadeOut(tween(700))`，已在其字节码中确认），每次路由切换都绕过 FR-2/FR-4。`LeafletTheme` 现在将解析后的 `MotionPolicy` 发布为 `LocalMotionPolicy`，`NavHost` 从该策略显式提供全部四个过渡。FR-2 保持决策集中，§Standard 又规定 M0/M1 无页面过渡，因此两种显示模式都解析为即时切换；后续里程碑若要引入 Standard 动画策略，只需改动这一处。设备过渡采集仍为 NOT_RUN（需要在硬件上做帧级观察）。
+
 ## 待确认问题
 
 - ripple“极弱”的可验证定义：T12 定案为直接 OFF（`EinkDisplayProfile.rippleEnabled = false` + Theme `LocalIndication provides null`，JVM 单测 `einkPresetDisablesEverythingAnimated` 锁定）；“极弱”变体不再保留。

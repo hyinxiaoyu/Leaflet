@@ -65,45 +65,64 @@ Milestone: M0（依赖 T05 目录浏览 + T06 基础 Reader，经 T07 交付；M
 
 ## 边界情况
 
-- 无位置记录的首次打开 → 顶部，无提示。
-- 位置指向的块已被删除（大段删除）→ 回退 anchor/progress。
-- 空文件/单块文件：`progress` 恒定处理，不除零。
-- 数据库迁移/版本升级：旧版本位置记录解析失败 → 视为无记录落顶部，不 crash（迁移测试见 T04）。
-- 同一文档在两个 Library 引用（若允许）：位置以 `documentId` 为键，不以 Library 区分。
+无位置记录的首次打开 → 顶部，无提示。
+位置指向的块已被删除（大段删除）→ 回退 anchor/progress。
+空文件/单块文件：`progress` 恒定处理，不除零。
+数据库迁移/版本升级：旧版本位置记录解析失败 → 视为无记录落顶部，不 crash（迁移测试见 T04）。
+同一文档在两个 Library 引用（若允许）：位置以 `documentId` 为键，不以 Library 区分。
 
 ## E-Ink 考量
 
-- 恢复滚动用 instant scroll（见 REQ-0005），禁止 smooth scroll 导致的多次刷新与残影。
-- 保存/恢复全程无动画、无高频 UI 更新；回退提示为静态小字条，不自动消失式闪烁（或 ≥ 3s 静态展示）。
+恢复滚动用 instant scroll（见 REQ-0005），禁止 smooth scroll 导致的多次刷新与残影。
+保存/恢复全程无动画、无高频 UI 更新；回退提示为静态小字条，不自动消失式闪烁（或 ≥ 3s 静态展示）。
 
 ## Standard Android 考量
 
-- 同一契约；Standard 允许恢复时使用短时滚动，但不得改变位置语义；节流参数两模式一致。
+同一契约；Standard 允许恢复时使用短时滚动，但不得改变位置语义；节流参数两模式一致。
 
 ## 性能考量
 
-- 写入节流避免每帧写库；补存路径同步轻量（单行 upsert），退出延迟 < 100ms 量级（实测回填，未验证）。
-- 位置读取与打开流水线并行，不阻塞首屏解析。
+写入节流避免每帧写库；补存路径同步轻量（单行 upsert），退出延迟 < 100ms 量级（实测回填，未验证）。
+位置读取与打开流水线并行，不阻塞首屏解析。
 
 ## 存储与数据影响
 
-- Room：`ReadingPosition` 表（主键 `documentId`，外键级联随 Document 清理）+ `RecentReading` 表（或同表 `lastOpenedAt` 列，T04 定案）；字段版本化，升级需迁移测试。
-- DataStore：节流参数、最近上限等用户设置；不存位置本身。
-- 移除 Library/清库 → 相关位置与最近行级联清除；原文不动。
+Room：`ReadingPosition` 表（主键 `documentId`，外键级联随 Document 清理）+ `RecentReading` 表（或同表 `lastOpenedAt` 列，T04 定案）；字段版本化，升级需迁移测试。
+DataStore：节流参数、最近上限等用户设置；不存位置本身。
+移除 Library/清库 → 相关位置与最近行级联清除；原文不动。
 
 ## 测试计划
 
-- DAO/Repository 单测：节流计数、补存、回退优先级矩阵（同指纹/异指纹/块越界/anchor 缺失）、缓存失效键、最近去重/上限/删除。
-- 假时钟测试节流；杀进程恢复走 instrumented；旋转不重解析以解析计数断言。
-- 坏项矩阵：删除/重命名/失权三种 provider 变体。
+DAO/Repository 单测：节流计数、补存、回退优先级矩阵（同指纹/异指纹/块越界/anchor 缺失）、缓存失效键、最近去重/上限/删除。
+假时钟测试节流；杀进程恢复走 instrumented；旋转不重解析以解析计数断言。
+坏项矩阵：删除/重命名/失权三种 provider 变体。
 
 ## 依赖
 
-- REQ-0001（Document/Library）、REQ-0002（块模型与位置映射）、T04（Room/DataStore 表与迁移）。
-- 被依赖：REQ-0005（模式切换保位置）、REQ-0006（anchor 同源）。
+REQ-0001（Document/Library）、REQ-0002（块模型与位置映射）、T04（Room/DataStore 表与迁移）。
+被依赖：REQ-0005（模式切换保位置）、REQ-0006（anchor 同源）。
+
+## 代码审查跟进（2026-10-01）
+
+[2026-10-01 后续审查](../plans/code-review-2026-10-01.md) 将 DEF-012 的延迟保存子项复现为失败的 JVM 回归：为文档 A 排队的写入在其 IO 协程最终执行时才读取可变的 `lastVisibleBlock`，而打开 B 会将该字段重置为 0——于是 A 的位置被第 0 块覆盖。`ReaderViewModel` 现在在请求保存时捕获不可变快照（document id、解析后的文档、块、加载代次（generation）），写入与其完成记账（completion bookkeeping）（保存节流、descriptor/stored-position 缓存）都绑定到该快照，因此延迟保存既不能写另一个文档的地址，也不能触碰当前文档的缓存。回归：`ReaderViewModelSaveSnapshotTest`（3 个 JVM 用例；两个切换用例在改动前失败）。该执行顺序的 Room/SAF/设备验证仍为 NOT_RUN。
+
+## 代码审查第 2 轮跟进（2026-10-01）
+
+[第 2 轮审查](../plans/code-review-2026-10-01-round-2.md) 在本 REQ 范围内又发现两个缺陷。
+
+- **CR-20261001-04 — 保存完成顺序（FR-2）。** 不可变快照修复了*身份*，但每次写入仍在各自的协程中运行，因此针对较旧块的慢速写入可能在更新的 `jumpToBlock` 与退出补存之后完成，把较旧的地址留在存储中。现在每次请求都在调用时（INVOCATION time）分配单调递增的序号（sequence）——在调用方线程上、任何派发（dispatch）之前（因此序号顺序绝不是 IO 启动顺序——即独立验收的边界）——而存储写入保持并发（较新的地址绝不会被较慢的旧写入阻塞），在存在更新请求时完成的写入既不发布保存节流（save throttle），也不发布位置缓存；而当该更新的写入已经落地时，会再次写入同一文档的最新已接受地址（最新请求按文档跟踪，因此切换文档不能重定向该修复）。随后每一次完成都会循环合并/收敛（coalesce）到该文档最新完成的请求，因为补偿写入（compensating write）本身也是一次普通存储写入，可能在更新的请求完成期间被扣住（独立验收，第三轮）。`flushPosition()` 返回其自身写入的任务，因此等待它的调用方仍能获得「最新已接受的地址已写入」。回归：`ReaderSaveOrderTest`（存储调用后完成顺序，以及跨文档修复用例）与 `ReaderSaveOrderDispatchTest`（逆序 IO 启动顺序——独立验收所用的反例）；两者在被拒绝的修订版上均复现 `writes=[5, 5, 2]`。
+- **CR-20261001-07 — 最近阅读元数据发布（UX-3/UX-4 提示）。** 最近阅读行只从条目列表派生，而资料库名称与文件健康存放在普通可变 Map 中，因此完成的查询不可见：该行一直显示未知资料库，并遗漏授权失效/文件缺失提示。`RecentViewModel` 现在把该元数据发布为不可变的可观察（observable）状态并与条目组合，立即发布条目列表（查询运行在一个会被下一份列表取代的任务中），并把缓存的元数据裁剪为已列出的条目。回归：`RecentMetadataPublicationTest`。
+
+两种顺序的真实 Room/SAF/设备验证仍为 NOT_RUN。
 
 ## 待确认问题
 
 - 节流间隔（初值 2s，`PositionThrottler.SAVE_INTERVAL_MS` 集中一处）与最近上限 30：T07 已验证可用（JVM 单测 + 双 flavor 真机演示），数值仍 UNVERIFIED，需 T13 基线后定案。
 - 内容指纹：T07 用 `mtime:size`（`fingerprintOf`）做相等比较；`contentHash` 列已预留但未启用，hash 成本待评估（仍 UNVERIFIED）。
 - `anchor` 字段：T07 为 best-effort（最近的上级标题可见文本，重复标题取首个），与 REQ-0006 协同定案后可能结构化（仍 UNVERIFIED）。
+
+## 第 3 轮缺陷修复证据（2026-10-01）
+
+既有 FR-1/FR-3 地址现以块索引加显示文本字符偏移贯穿应用状态与保存。恢复回声（restore echo）与旧式同块观察保留已加载偏移；真实块内移动会更新偏移。文本条目使用重新布局后的实测行起点；复合条目有有界近似。存储格式与位置版本不变。待处理写入在完成前保留排序记录，空闲缓存上限不能丢弃活跃修复目标。
+
+`ReaderContinuationFixTest` 与 `BlockPositionGeometryTest` 覆盖保留的无移动/淘汰失败、块内变化、文档归属及布局投影。`ReaderLogicalPositionPageTest` 覆盖长段落重开及 TXT 块内翻页；两个分发变体（flavor）均可编译，但仍为 NOT_RUN。见[第 3 轮修复证据](../plans/code-review-2026-10-01-round-3.md)。设备/进程/视觉标准仍待补；状态不推进为 DONE。

@@ -1,5 +1,6 @@
 package io.leaflet.storage.prefs
 
+import io.leaflet.model.DisplayMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -18,7 +19,7 @@ class ReaderSettingsTest {
         assertEquals("system", ReaderSettings.FONT_FAMILY_DEFAULT)
         assertEquals(true, ReaderSettings.CODE_SOFT_WRAP_DEFAULT)
         assertEquals(0.05f, ReaderSettings.PAGE_OVERLAP_DEFAULT, 0.0f)
-        assertEquals("CONTINUOUS_SCROLL", ReaderSettings.READING_MODE_DEFAULT)
+        assertEquals("PAGE_TURN", ReaderSettings.READING_MODE_DEFAULT)
     }
 
     @Test
@@ -48,8 +49,20 @@ class ReaderSettingsTest {
     }
 
     @Test
-    fun unknownReadingModeFallsBackToContinuous() {
-        assertEquals("CONTINUOUS_SCROLL", ReaderSettings.sanitizeReadingMode("PAGED???"))
+    fun unknownReadingModeFallsBackToPageTurns() {
+        assertEquals("PAGE_TURN", ReaderSettings.sanitizeReadingMode("PAGED???"))
         assertEquals("PAGE_TURN", ReaderSettings.sanitizeReadingMode("PAGE_TURN"))
+    }
+
+    /**
+     * CR-20260930-05 / REQ-0005 FR-4: with no stored choice, E-Ink installs
+     * and Standard installs both start in page turns. An explicit stored mode is never
+     * rewritten by a display-mode switch.
+     */
+    @Test
+    fun bothDisplayModesDefaultToPageTurns() {
+        assertEquals("PAGE_TURN", ReaderSettings.defaultReadingModeFor(DisplayMode.EINK))
+        assertEquals("PAGE_TURN", ReaderSettings.defaultReadingModeFor(DisplayMode.STANDARD))
+        assertEquals("PAGE_TURN", ReaderSettings.READING_MODE_DEFAULT)
     }
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original 24 dp folder glyph for the browse rows (REQ-0012 FR-5).
+     Drawn in-repo as a plain silhouette: no icon-library dependency and no
+     copied third-party icon path. Tinted by Compose `Icon`. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M2,6 H9 L11,8 H22 V19 H2 Z" />
+</vector>

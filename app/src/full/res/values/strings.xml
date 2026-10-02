@@ -1,3 +1,4 @@
-<resources>
+<!-- MissingTranslation until UX-10 delivers full values-zh parity (REQ-0012 FR-7). -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="app_name">Leaflet</string>
 </resources>

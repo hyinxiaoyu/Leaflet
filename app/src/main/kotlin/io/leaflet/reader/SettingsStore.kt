@@ -115,10 +115,18 @@ class SettingsStore(
         dataStore.edit { prefs -> prefs[PAGE_OVERLAP_KEY] = ReaderSettings.coercePageOverlap(overlap) }
     }
 
-    /** `CONTINUOUS_SCROLL` or `PAGE_TURN` (behavior owned by T08/REQ-0005; stored here only). */
+    /**
+     * `CONTINUOUS_SCROLL` or `PAGE_TURN` (behavior owned by T08/REQ-0005; stored
+     * here only).
+     *
+     * CR-20260930-05: an ABSENT value falls back to the default for this
+     * install's display mode (both now default to page turns). An explicitly stored value always wins, including
+     * after a display-mode switch.
+     */
     val readingMode: Flow<String> =
         dataStore.data.catchIo().map { prefs ->
-            ReaderSettings.sanitizeReadingMode(prefs[READING_MODE_KEY] ?: ReaderSettings.READING_MODE_DEFAULT)
+            prefs[READING_MODE_KEY]?.let { ReaderSettings.sanitizeReadingMode(it) }
+                ?: ReaderSettings.defaultReadingModeFor(defaultMode)
         }
 
     suspend fun setReadingMode(mode: String) {

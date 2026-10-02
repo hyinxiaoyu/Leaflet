@@ -1,5 +1,7 @@
 package io.leaflet.storage.prefs
 
+import io.leaflet.model.DisplayMode
+
 /**
  * Reader typography/reading defaults, ranges and coercion (REQ-0007 FR-1–FR-4,
  * FR-7; REQ-0010 FR-3; overlap REQ-0008/reading-mode REQ-0005 entry points).
@@ -23,7 +25,7 @@ package io.leaflet.storage.prefs
  *   Standard default is UNVERIFIED (allowed to differ) — T09 freezes the
  *   per-mode default and this stored value remains the user override.
  * - Page-turn overlap: `0.05` (5%), allowed `0.03..0.08` per REQ-0008/T08.
- * - Reading mode: `CONTINUOUS_SCROLL` default. PAGE_TURN behavior and any
+ * - Reading mode: `PAGE_TURN` default. Page-turn behavior and any
  *   E-Ink-preferred default are owned by T08 (REQ-0005); stored here only.
  * - Tap-zone hint seen: `false` on a fresh install. The reader shows its
  *   one-time tap-zone onboarding while this is `false` and persists `true` on
@@ -52,7 +54,7 @@ object ReaderSettings {
 
     const val READING_MODE_CONTINUOUS = "CONTINUOUS_SCROLL"
     const val READING_MODE_PAGE_TURN = "PAGE_TURN"
-    const val READING_MODE_DEFAULT = READING_MODE_CONTINUOUS
+    const val READING_MODE_DEFAULT = READING_MODE_PAGE_TURN
 
     /**
      * First-run tap-zone onboarding (UX-06): `false` until the reader hint is
@@ -69,6 +71,20 @@ object ReaderSettings {
     fun sanitizeFontFamily(family: String): String = if (family.isBlank()) FONT_FAMILY_DEFAULT else family
 
     fun coercePageOverlap(overlap: Float): Float = overlap.coerceIn(PAGE_OVERLAP_MIN, PAGE_OVERLAP_MAX)
+
+    /**
+     * First-run reading mode for display [mode] (REQ-0005 FR-4;
+     * 2026-10-01 ebook interaction follow-up): both display modes start in page
+     * turns. This is only the value used while the user has never chosen a
+     * reading mode — an explicitly stored choice always wins, including after a
+     * display-mode switch, because the reading mode is an independent setting
+     * (mode switches preserve position, they do not rewrite preferences).
+     */
+    fun defaultReadingModeFor(mode: DisplayMode): String =
+        when (mode) {
+            DisplayMode.EINK -> READING_MODE_PAGE_TURN
+            DisplayMode.STANDARD -> READING_MODE_PAGE_TURN
+        }
 
     fun sanitizeReadingMode(mode: String): String =
         when (mode) {

@@ -8,19 +8,55 @@ All notable user-visible changes are recorded here. Format follows [Keep a Chang
 
 ### Fixed
 
+- Reader now has visible menu and previous/next controls, with page controls disabled at document boundaries. Reading actions wrap and scroll within a bounded menu, Help reopens the gesture instructions, and gestures leaving the Reader or touching behind a tutorial no longer turn or toggle the underlying page.
+
+- Ebook page turns now accept left/right body swipes on release and side taps including page margins, without moving the body during a drag. Unconfigured reading mode defaults to page turns in both editions; explicit continuous-scroll choices remain available and preserved. Link/buttons and horizontal table/code gestures retain priority, and turns read current menu geometry.
+
+- Breadcrumb taps retain the Library and folder prefix from the rendered entry. A queued tap no longer reads newer screen state and moves a different Library or a folder opened since that entry was rendered.
+
+- Delayed reading-position writes retain ordering state across many document switches; only idle bookkeeping is evicted.
+- Reading positions retain in-block character offsets. Long text restores through its current line layout, and no-movement flushes preserve saved offsets.
+- Switching or leaving the Reader cancels stale relative-link navigation; handed-off fragments belong only to their destination document.
+
+- Markdown tables now share column widths across all rows, with clear grid dividers and a stronger header rule.
+- Small local images retain their decoded pixel size; large or tall images fit the viewport and 320 dp height without distorting their aspect ratio.
+- Code-copy feedback now resets two seconds after the latest tap, inside the existing action button, so copying never shifts the document layout.
+
 - A link to a section in the same document (`#section`) now scrolls to that section. It previously left the page where it was.
 - Opening a link to an external site on a device with no app that can handle it now shows the recoverable "no app can open this link" notice instead of doing nothing.
 - Changing the page-turn overlap setting now affects page turns immediately; previously the new overlap only took effect after a rotation or reading-mode change.
+- In page-turn mode the last line of a document can now always be reached: the page stops only once the end of the text is clear of the progress footer and of an open reading menu, instead of stopping while the last lines were still covered.
+- A search hit in the very first block, and a chapter chosen from the table of contents, are no longer left hidden under the search bar or the menu title. Search hits are stepped to below the search bar, and choosing a chapter closes the reading menu.
+- An external link now opens in the browser (or other handler) even when the app cannot see that handler through Android's package-visibility rules; the "no app can open this link" notice appears only when the launch really has no handler.
+- A reading position saved just as another document was opened could be written against the wrong block (block 0 of the document being left, or the new document's row). Each save now carries the document, block, and load generation captured when it was requested, and a delayed save can no longer update the current document's caches or save throttle.
+- Closing the reading menu at the very end of a document no longer makes the text jump: the trailing scroll space no longer shrinks with the menu, so the position is kept.
+- Navigation between Library, Browse, Settings, and Reader is now instant in both display modes. The app previously used the navigation library's default 700 ms fade, which E-Ink must never show.
+- A Markdown table with an extremely long single-line cell no longer crashes the reader. Such a table renders as its own horizontally scrollable text, so nothing is clipped or lost.
+- The newest reading position can no longer be lost when saves overlap, whatever order the writes start or finish in — including the compensating write that follows a late older save. Each save records its place when it is requested, and the last write to the store is always that document's newest requested address; a stale save no longer updates the save throttle or the cached position.
+- A folder whose provider row arrives without a display name, without an id, or without a MIME type is no longer mistaken for a file (the file-scan path keeps that classification all the way from the provider row to the scanner). A scan that cannot fully classify a row keeps the previous index instead of deleting the folder's indexed documents; the scan still completes and reports the affected rows.
+- Opening a Library no longer shows the wrong Library when an earlier, slower load finishes later. The current selection, its document rows, its folder path, and its scan progress are kept, and a scan refresh that finishes after switching Libraries cannot overwrite them.
+- The Recently-read list now shows the resolved Library name and the "access lost"/"file missing" hint as soon as those checks finish, instead of keeping the unknown state until something else changed the list.
+- Folder scanning no longer moves the file list. Progress, Cancel, Retry, and the recoverable failure/cancellation text occupy one reserved status area whose size does not depend on the scan state, so starting, cancelling, or failing a scan leaves the list where it was.
+- Pressing Cancel when no folder scan is running no longer leaves the status stuck on "cancelling": cancellation now only applies to a scan that is actually in progress.
+- A breadcrumb tap is now ignored when the Library or folder it was shown for is no longer the one you are in, so a stale tap can no longer jump a newly opened Library back to its root.
 
 ### Added
 
 - The reader shows a one-time tap-zone hint on first open: an opaque overlay illustrating the previous-page, reading-menu, and next-page thirds with mode-appropriate wording. One tap anywhere, or "Got it", dismisses it, and the dismissal is remembered, so it never returns.
 - Folders that hold no Markdown or TXT file now appear while browsing a Library. The scan stores each folder's relative path only; it still never reads a file body or copies an original. A folder shows the existing empty placeholder when opened.
+- Browsing a Library now shows a breadcrumb with the Library root and every ancestor folder; tapping one jumps straight to that folder, and the folder you are in is shown as the current segment instead of another button.
+- File and folder rows now show a folder or document icon and a readable MD / MARKDOWN / TXT tag, so the type no longer depends on a trailing slash or on colour.
 
 ### Changed
 
-- The reader body now fills the whole viewport. The document title, the notices, the search bar, the reading menu, and the reading-progress line float over the text instead of shrinking it, so opening or closing any of them no longer reflows the page (the E-Ink flash source) and the title no longer spends a permanent header. The progress line is a discreet anchored footer, and page turns still advance by the visible height minus the overlap, now measured against the chrome actually on screen.
+- Home now brings continuing a document, folders, reading history and navigation into one lazy scroll. First-use guidance appears only after folder loading completes; failed local-index loading has a retry action, and clearing history asks for confirmation.
+- Reading settings show actual typography values and an immediate preview, with uniform selected controls. The shared shell reserves system-bar/cutout space, matches system-bar icon contrast to the display mode, and supplies a complete grayscale E-Ink palette.
+
+- The reader body now fills the whole viewport. The document title, the notices, the search bar, the reading menu, and the reading-progress line float over the text instead of shrinking it, so opening or closing any of them no longer reflows the page (the E-Ink flash source) and the title no longer spends a permanent header. The progress line is a discreet anchored footer, and page turns still advance by the visible height minus the overlap, now measured against the chrome actually on screen. Notices and the search bar reserve their own space above the text, so they never hide it either.
+- A fresh E-Ink install now starts in page-turn mode instead of continuous scrolling; Standard installs still start in continuous scrolling. An explicitly chosen reading mode is kept, including after switching display mode.
 - Library browse shows one folder level at a time. Subfolders are listed before files, and each group is sorted by name. Back moves up one level.
+- Library browse rows are now at least 48 dp tall and long names wrap instead of being cut off, so every file and folder is comfortable to tap. The file list is also a bounded, scrollable area now, which keeps the Back control on screen in large folders.
+- Opening a different folder, or switching Library, now shows that folder's list from the top again instead of keeping the previous scroll position.
 - Long-press a Library and confirm to remove its local index, indexed documents, indexed folders, reading positions, and recent entries. Original files stay on the device.
 - Existing installs upgrade their local index in place to database version 2. The upgrade is additive: no Library, document, reading position, or recent entry is dropped, and folder rows arrive with the next successful scan.
 
@@ -81,6 +117,13 @@ All notable user-visible changes are recorded here. Format follows [Keep a Chang
 - Truncation is explicit: `capped` reaches SearchUiState and the bar says “too many results; refine query.” Count/navigation/highlight use the same returned window.
 - New query/document switch cancels old work through debounce + generation guard; fallback chunks remain searchable/navigable. Table-cell highlight maps block-visible offsets into stripped cell coordinates, with whole-block bold fallback for ambiguity.
 - Added JVM tests for dense cap, sparse completeness, cancellation, blank query, cell mapping, and span composition. Real 10 MB device search/E-Ink ghosting remain NOT_RUN.
+
+### Added — T13 quality gates and E-Ink Alpha candidate
+
+- Historical T13 gates: Full/Eink debug and unsigned release APKs built; JVM 406/406, lint with no errors, and ktlintCheck passed. Storage device tests passed 15/15 (Room/SAF/scanner and original-file SHA-256); Markdown passed 5/5 (10 MB multi-block parsing took about 599 seconds of emulator CPU, giant paragraph/code fallback, 2 MB cooperative cancellation, stale-result guards).
+- Parser cooperation: `topLevelBlocks`, `BlockSlicer.slice`, and parsing yield every 512 blocks. The 10 MB readability case uses a normal `@Test`; the cancellation sample on `Dispatchers.Default` is 2 MB because `runTest`'s 60-second virtual budget cannot accommodate over 50 seconds of CPU parsing.
+- Historical documentation: `docs/performance/apk-size.md` recorded 22,517,277 / 22,517,017 B (260 B difference); emulator startup/memory/10 MB baselines and the emulator-supported E-Ink matrix were recorded. Real-device rows remained NOT_RUN.
+- Status was an unsigned candidate only, with license/application ID TBD and no real E-Ink verdict. T13 did not mark REQs DONE while hardware ghosting, measured thresholds, or full instrumented green gates were still missing.
 
 ### Added — T12 display policy and Settings integration
 

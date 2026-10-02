@@ -1,0 +1,95 @@
+/Users/clover/.gradle/caches/8.13/transforms/0a93604b216d8ced0aa1ddb4fe7ba724/transformed/navigation-runtime-2.7.7/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/0b133e46c77520438f512b5315f87d60/transformed/savedstate-ktx-1.2.1/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/0d7f15c226784afdeae113abe4220330/transformed/ui-test-manifest-1.7.5/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/1b06a196862e2890ad77462a68f31fef/transformed/core-1.13.1/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/22707b6c4b6aa961bccfa56bd4c54957/transformed/emoji2-1.3.0/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/24be79a2a3a20702315468d68be31895/transformed/runtime-saveable-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/2988e88ef5a4fb0a03663b154ecb25f0/transformed/navigation-common-ktx-2.7.7/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/2ce49db232427908ee5b2a0f684ad73d/transformed/activity-1.9.3/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/31cd41452e473cba36bcf7bd501671cd/transformed/ui-geometry-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/3ab78f2c11bb0c0c2f37dcf18f9e956c/transformed/lifecycle-process-2.8.7/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/3b0b00ef6ec6c78934ebbf2472db7185/transformed/lifecycle-viewmodel-ktx-2.8.7/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/4614d69393481831be34f2419d7a060d/transformed/recyclerview-1.2.1/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/46183ff0d25cae78e3f31738f9c49b74/transformed/startup-runtime-1.1.1/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/471cc5b309a50d6ece9d032698479375/transformed/navigation-common-2.7.7/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/4a1321930c929bb2237d6721cb45e387/transformed/material-ripple-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/555704b06aae51a7aa1b4cafca42774c/transformed/lifecycle-runtime-ktx-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/56d15a0546f68b4411f85b68589da066/transformed/core-runtime-2.2.0/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/5cd354b40272346e87c8fef096d3cf3c/transformed/customview-poolingcontainer-1.0.0/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/5e718644103ae12259340b1cb26276d5/transformed/ui-graphics-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/5fd511a43b06f4bf74311c53ff732b79/transformed/core-ktx-1.13.1/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/6b577dd4dfd803c5ac087a79eb62dbd4/transformed/activity-compose-1.9.3/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/72ccc0f0cd12fc93acf2aaf5966d3c42/transformed/lifecycle-viewmodel-compose-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/73e8fafa47e12340aef6ffd6511bd429/transformed/lifecycle-runtime-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/789751aa06c3f1e371153571509657ca/transformed/ui-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/803bd28c9678533b0f1dda68e16b61cf/transformed/ui-util-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/88769a17718a480f971bbf69485cf2e4/transformed/room-ktx-2.8.5/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/8c6e2499b266a540566323b38c874340/transformed/navigation-compose-2.7.7/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/9767c94fd7a66b7d656fb5d066dfe711/transformed/annotation-experimental-1.5.0/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/98c042f2230e698f31deda5406cef4a8/transformed/lifecycle-viewmodel-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/a09f8279976a0f909d69217746cd4f18/transformed/animation-core-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/a2c96ed358f01ace20b95b137fd3f205/transformed/lifecycle-runtime-compose-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/b07f58660dbb065eb773b5a442a10ef6/transformed/foundation-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/b7e3406d99d36e2a598679c7f6d18f7b/transformed/animation-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/bf4440d7886df138cd5666a96da961f1/transformed/ext-tables-4.6.2/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/c02409fd94232af5ae8f826323291231/transformed/lifecycle-livedata-core-2.8.7/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/c202d8e20e0925e9c1030a706100c0e2/transformed/ui-unit-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/cf27c768b382d5314e506a2bc63c065f/transformed/lifecycle-viewmodel-savedstate-2.8.7/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/d047ab979aeee296f24c6569a44df6cd/transformed/activity-ktx-1.9.3/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/d7b4507eddeb28268d0c253820cdd30b/transformed/navigation-runtime-ktx-2.7.7/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/d97f4a234fb237aaf8c987ec36cf61bc/transformed/profileinstaller-1.3.1/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/d9e1dc245e0a3223381765b677bd7b49/transformed/foundation-layout-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/e146049c51094dcd261099a0b1a2abf5/transformed/ui-text-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/e69779057cc078df159c9713a67e0bd2/transformed/graphics-path-1.0.1/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/e8f124fdc876efd2abd4aa421b6a8765/transformed/runtime-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/ed6565e0beb88535ece3c3ff6f6828a7/transformed/material3-release/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/f7b7165681f10a128e415475086ce084/transformed/savedstate-1.2.1/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/fadf8060f167ae38d4d022e3aa551ef3/transformed/core-4.6.2/res: 0
+
+/Users/clover/.gradle/caches/8.13/transforms/faef6cac64def368251c48456dd48b5c/transformed/material-icons-core-release/res: 0

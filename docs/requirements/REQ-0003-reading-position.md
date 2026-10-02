@@ -88,8 +88,56 @@ DAO/Repository tests cover throttle count, exit flush, restore-priority matrix (
 
 Requires REQ-0001 Library/Document, REQ-0002 block model/PositionMap, and T04 Room/DataStore schema. REQ-0005 mode changes must preserve position; REQ-0006 shares the anchor model.
 
+## Code review follow-up (2026-10-01)
+
+The [2026-10-01 follow-up review](../plans/code-review-2026-10-01.md) reproduced the deferred-save subcase of
+DEF-012 as a failing JVM regression: a write queued for document A read the mutable
+`lastVisibleBlock` when its IO coroutine finally ran, and opening B resets that field to 0 — so A's
+position was overwritten with block 0. `ReaderViewModel` now captures an immutable snapshot
+(document id, parsed document, block, load generation) when the save is requested, and both the write
+and its completion bookkeeping (save throttle, descriptor/stored-position caches) are bound to that
+snapshot, so a delayed save can neither write another document's address nor touch the current
+document's caches. Regressions: `ReaderViewModelSaveSnapshotTest` (3 JVM cases; the two switch cases
+failed before the change). Room/SAF/device verification of this ordering remains NOT_RUN.
+
+## Code review round-2 follow-up (2026-10-01)
+
+The [round-2 review](../plans/code-review-2026-10-01-round-2.md) found two more defects in this REQ's area.
+
+- **CR-20261001-04 — save completion order (FR-2).** Immutable snapshots fixed *identity* but each
+  write still ran in its own coroutine, so a slow write for an older block could complete after a
+  newer `jumpToBlock` and the exit flush and leave the older address stored. Each request now
+  allocates a monotonic sequence at INVOCATION time, on the caller's thread before any dispatch (so
+  sequence order is never IO-start order — the independent acceptance boundary), while store writes
+  stay concurrent (a newer address is never blocked behind a slower older one). A write that completes
+  while a newer request exists publishes neither the save throttle nor the position caches, and when
+  that newer write already landed the newest accepted address for the same document is written again
+  (the newest request is tracked per document, so switching documents cannot redirect the repair).
+  Every completion then coalesces to that document's newest completed request in a loop, because a
+  compensating write is itself an ordinary store write that can be held while even newer requests
+  complete (independent acceptance, third round). `flushPosition()` returns the job of its own write, so a caller
+  that joins it still gets "the latest accepted address is written". Regression:
+  `ReaderSaveOrderTest` (post-store completion order, plus the cross-document repair case) and
+  `ReaderSaveOrderDispatchTest` (reverse IO start order — the counterexample the independent acceptance
+  used); both reproduced `writes=[5, 5, 2]` on the rejected revision.
+- **CR-20261001-07 — recent metadata publication (UX-3/UX-4 hints).** The Recently-read rows derived
+  only from the entry list while the library name and file health lived in plain mutable maps, so a
+  finished lookup was invisible: the row kept showing an unknown library and omitted the
+  access-lost/missing-file hint. `RecentViewModel` now publishes that metadata as immutable
+  observable state combined with the entries, publishes the entry list immediately (lookups run in a
+  job the next list supersedes), and prunes cached metadata to the listed entries. Regression:
+  `RecentMetadataPublicationTest`.
+
+Real Room/SAF/device verification of both orderings remains NOT_RUN.
+
 ## Open Questions
 
 - T07 uses a 2-second `PositionThrottler.SAVE_INTERVAL_MS` and recent cap of 30; JVM tests and both-flavor device demos show usability, but values remain unverified until T13 baselines.
 - T07 fingerprint is `mtime:size`; a `contentHash` column is reserved but unused. Hash cost is unmeasured.
 - T07 anchor is best-effort (nearest parent heading text, first duplicate heading). REQ-0006 may define a more structured anchor; this remains unverified.
+
+## Round-3 bug-fix evidence (2026-10-01)
+
+The existing FR-1/FR-3 address now carries block index plus displayed-text character offset through app state and saves. Restore echo and legacy same-block observations preserve a loaded offset; real in-block movement updates it. Text entries use measured line starts after relayout; composite entries have a bounded approximation. Storage format and position version remain unchanged. Pending writes retain ordering records until completion, so idle-cache limits cannot discard active repair targets.
+
+`ReaderContinuationFixTest` and `BlockPositionGeometryTest` cover the retained no-movement/eviction failures, in-block changes, document ownership, and layout projection. `ReaderLogicalPositionPageTest` covers long-paragraph reopen and TXT in-block page turns; both flavors compile, but it is NOT_RUN. See [round-3 repair evidence](../plans/code-review-2026-10-01-round-3.md). Device/process/visual criteria remain pending; status is not advanced to DONE.

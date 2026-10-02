@@ -220,15 +220,30 @@ class LibraryScanner(
                         directories,
                     )
                 }
-                if (entry.documentId.isBlank() || entry.displayName.isBlank()) {
+                if (entry.typeUnknown || entry.documentId.isBlank() || entry.displayName.isBlank()) {
                     errors.add(
                         EntryError(
                             path = if (relDir.isEmpty()) entry.displayName else "$relDir/${entry.displayName}",
-                            reason = "缺少元数据列，已跳过该条目",
+                            reason =
+                                if (entry.typeUnknown) {
+                                    "类型未知（缺少 MIME），已跳过该条目"
+                                } else {
+                                    "缺少元数据列，已跳过该条目"
+                                },
                             isDirectory = entry.isDirectory,
                         ),
                     )
-                    if (entry.isDirectory) subtreeSkipped = true
+                    // CR-20261001-05: a row we could not fully classify is
+                    // INSUFFICIENT absence evidence for the whole walk. The row
+                    // may be the very file or folder that was indexed before
+                    // (now nameless or untyped), or a folder we cannot enumerate;
+                    // treating the walk as complete would turn partial
+                    // enumeration into a disappearance cleanup. Keep the
+                    // previous rows instead. A known-MIME row with a blank name
+                    // and an unknown-MIME row are both covered here — an unknown
+                    // type is NEVER indexed as a file either, so it cannot
+                    // silently stand in for a folder that vanished.
+                    subtreeSkipped = true
                     throttledProgress(libraryId, files.size, relDir, errors.size)
                     continue
                 }

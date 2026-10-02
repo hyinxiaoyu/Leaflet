@@ -5,10 +5,11 @@ import androidx.lifecycle.viewModelScope
 import io.leaflet.model.LibraryId
 import io.leaflet.model.RecentRead
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -68,26 +69,52 @@ class RecentViewModel(
     private val _entries = MutableStateFlow<List<RecentRead>>(emptyList())
     val entries: StateFlow<List<RecentRead>> = _entries
 
+    /**
+     * Lazy per-row metadata (library name + file health), held as IMMUTABLE
+     * observable state so [rows] is recomputed when a lookup finishes
+     * (CR-20261001-07). Plain mutable maps made a completed lookup invisible:
+     * the list kept showing an unknown library and omitted the
+     * authorization-lost/missing-file hint until some unrelated entry change
+     * happened to rebuild the rows.
+     */
+    private data class RecentMeta(
+        /** A present key means "lookup attempted"; a null value resolved to nothing. */
+        val names: Map<String, String?> = emptyMap(),
+        val health: Map<String, RecentHealth> = emptyMap(),
+    )
+
+    private val metaState = MutableStateFlow(RecentMeta())
+
     val rows: StateFlow<List<RecentRow>> =
-        _entries.map { list ->
+        combine(_entries, metaState) { list, meta ->
             list.map { entry ->
                 RecentRow(
                     entry = entry,
-                    libraryName = nameCache[entry.libraryId.value],
-                    health = healthCache[entry.documentId.value] ?: RecentHealth.UNKNOWN,
+                    libraryName = meta.names[entry.libraryId.value],
+                    health = meta.health[entry.documentId.value] ?: RecentHealth.UNKNOWN,
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val nameCache = mutableMapOf<String, String?>()
-    private val healthCache = mutableMapOf<String, RecentHealth>()
+    /** In-flight metadata lookups for the current entry list. */
+    private var metaJob: Job? = null
 
     init {
         viewModelScope.launch {
             try {
                 store.observeRecent().collect { list ->
+                    // Publish the list immediately: metadata lookups can be slow
+                    // (provider health probes) and the entry stream must not wait
+                    // for them (CR-20261001-07).
                     _entries.value = list
-                    refreshMeta(list)
+                    // Cache invalidation: metadata is kept only for entries that
+                    // are still listed, so a removed document cannot keep a stale
+                    // hint and a re-added one is looked up again.
+                    pruneMeta(list)
+                    // A newer list supersedes the previous lookups, so a result
+                    // that arrives after its entry changed cannot be applied.
+                    metaJob?.cancel()
+                    metaJob = launch { refreshMeta(list) }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -101,7 +128,7 @@ class RecentViewModel(
         viewModelScope.launch {
             try {
                 store.removeRecent(documentId)
-                healthCache.remove(documentId.value)
+                metaState.value = metaState.value.copy(health = metaState.value.health - documentId.value)
                 _entries.value = _entries.value.filterNot { it.documentId == documentId }
                 _notice.value = "已移除该记录"
             } catch (e: CancellationException) {
@@ -116,7 +143,7 @@ class RecentViewModel(
         viewModelScope.launch {
             try {
                 store.clearRecent()
-                healthCache.clear()
+                metaState.value = RecentMeta()
                 _entries.value = emptyList()
                 _notice.value = "已清空最近阅读"
             } catch (e: CancellationException) {
@@ -131,11 +158,24 @@ class RecentViewModel(
         _notice.value = null
     }
 
+    /** Drops cached metadata for keys no longer present in [list]. */
+    private fun pruneMeta(list: List<RecentRead>) {
+        val libs = list.mapTo(mutableSetOf()) { it.libraryId.value }
+        val docs = list.mapTo(mutableSetOf()) { it.documentId.value }
+        val current = metaState.value
+        val names = current.names.filterKeys { it in libs }
+        val health = current.health.filterKeys { it in docs }
+        if (names.size != current.names.size || health.size != current.health.size) {
+            metaState.value = RecentMeta(names, health)
+        }
+    }
+
     private suspend fun refreshMeta(list: List<RecentRead>) {
         for (entry in list) {
             val libKey = entry.libraryId.value
-            if (!nameCache.containsKey(libKey)) {
-                nameCache[libKey] =
+            val docKey = entry.documentId.value
+            if (!metaState.value.names.containsKey(libKey)) {
+                val resolved =
                     try {
                         store.resolveLibraryName(entry.libraryId) ?: libraryNames(entry.libraryId)
                     } catch (e: CancellationException) {
@@ -143,10 +183,10 @@ class RecentViewModel(
                     } catch (_: Exception) {
                         null
                     }
+                publishName(libKey, resolved)
             }
-            val docKey = entry.documentId.value
-            if (healthCache[docKey] == null) {
-                healthCache[docKey] =
+            if (metaState.value.health[docKey] == null) {
+                val health =
                     try {
                         store.checkHealth(entry)
                     } catch (e: CancellationException) {
@@ -154,7 +194,26 @@ class RecentViewModel(
                     } catch (_: Exception) {
                         RecentHealth.UNKNOWN
                     }
+                publishHealth(docKey, health)
             }
         }
+    }
+
+    /** Publishes a name lookup, but only while its library is still listed. */
+    private fun publishName(
+        libraryKey: String,
+        value: String?,
+    ) {
+        if (_entries.value.none { it.libraryId.value == libraryKey }) return
+        metaState.value = metaState.value.let { it.copy(names = it.names + (libraryKey to value)) }
+    }
+
+    /** Publishes a health lookup, but only while its document is still listed. */
+    private fun publishHealth(
+        documentKey: String,
+        value: RecentHealth,
+    ) {
+        if (_entries.value.none { it.documentId.value == documentKey }) return
+        metaState.value = metaState.value.let { it.copy(health = it.health + (documentKey to value)) }
     }
 }

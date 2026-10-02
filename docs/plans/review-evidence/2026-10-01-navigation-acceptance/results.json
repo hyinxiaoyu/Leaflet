@@ -1,0 +1,75 @@
+{
+  "acceptance_id": "NAV-ACC-20261001",
+  "recorded_at": "2026-10-01T11:40:54.200254+08:00",
+  "conclusion": "NOT_ACCEPTED",
+  "evidence_kind": "independently executed focused JVM probes plus static review",
+  "head": "5a754292c1ea02f33af0cb917f5cf24c29dbb763",
+  "environment": {
+    "jdk": "17.0.9",
+    "kotlin_compiler": "2.0.21",
+    "junit": "4.13.2",
+    "lifecycle": "2.8.7",
+    "coroutines": "1.10.2",
+    "host_arch": "arm64"
+  },
+  "existing_focused_tests": {
+    "executed": 18,
+    "passed": 18,
+    "failed": 0,
+    "classes": [
+      "BreadcrumbTest",
+      "LibraryAncestorNavigationTest",
+      "LibraryBrowseSelectionTest"
+    ]
+  },
+  "independent_acceptance_probes": {
+    "executed": 2,
+    "passed": 0,
+    "failed": 2,
+    "class": "NavigationAcceptanceProbe",
+    "observations": [
+      "stale A-root action changes B prefix from Docs/Notes to empty",
+      "cancel without an active scan changes IDLE to CANCELLING"
+    ]
+  },
+  "gradle": "BLOCKED before tasks: FileLockContentionHandler socket Operation not permitted",
+  "android_page_tests": "NOT_RUN: ADB listener denied; installed AVD exists",
+  "full_flavor_build": "NOT_RUN",
+  "eink_flavor_build": "NOT_RUN",
+  "lint": "NOT_RUN",
+  "ktlint": "NOT_RUN",
+  "real_eink": "NOT_RUN",
+  "talkback": "NOT_RUN",
+  "link_only_dependency": {
+    "path": "core/storage/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar",
+    "sha256": "35e41f577916963fa1533cb35e550231dbd041ad2b4c72a03998d1ba40910840",
+    "scope": "link-only; scanner=null in focused probes; no storage/scanner verification claimed"
+  },
+  "source_sha256": {
+    "core/model/src/main/kotlin/io/leaflet/model/Ids.kt": "6aadba5c4b34ae6dac2d5e9dbf5c28c5bf31674313689447878043d9aabbe833",
+    "core/model/src/main/kotlin/io/leaflet/model/Document.kt": "760c7a200fcf6dc031eec7fa8f755eeaf04d9d3dd1b967766cc0fc20bc78a0ae",
+    "core/model/src/main/kotlin/io/leaflet/model/Library.kt": "f0a7176f3d2b5d36168f3fb435cf424aeef395c3925d1c2004ffa8d3bfa27b73",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/BrowseLevel.kt": "c709b859cccaa1b990117b67cf749fd77e99dfb0332a34289d63311e5197a1ef",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/Breadcrumbs.kt": "012266614983409453c729cf1c4b7da78a7927db77142ae45d5cfd5d633d027e",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/LibraryViewModel.kt": "de435a2fdfb98299e59b1feaa072a71a33491ad0959256afbff78970193db4ac",
+    "app/src/main/kotlin/io/leaflet/reader/ui/library/LibraryScreens.kt": "65f7184ae9f89036c3b26315eda18052146a631035c16a1d8d0c3247b8074523",
+    "app/src/androidTest/kotlin/io/leaflet/reader/ui/LibraryBrowsePageTest.kt": "f72190bc6780e4a50241e390d9c503d4ac2982b4fadeecef1d93ce835096b3e5",
+    "app/src/test/kotlin/io/leaflet/reader/ui/library/BreadcrumbTest.kt": "15b579164008f692dd63b56821b604b4de7541c572bf90e9bead537750577fe7",
+    "app/src/test/kotlin/io/leaflet/reader/ui/library/LibraryAncestorNavigationTest.kt": "c44b21aabb82b179be961da2e38d348b1925aa77018ad6a87b92e23674d98a66",
+    "app/src/test/kotlin/io/leaflet/reader/ui/library/LibraryBrowseSelectionTest.kt": "59442f9ebce992385f49f939de20313a3278376a2481f065df20caaa329f3f06"
+  },
+  "old_report_policy": "historical reports remain unchanged; their self-reported counts are not results of this run",
+  "recheck_runner": {
+    "verified": true,
+    "exit_code": 1,
+    "existing_passed": 18,
+    "independent_failed": 2
+  },
+  "cleanup": {
+    "temporary_root": "/tmp/leaflet-navigation-acceptance.G9Ad29",
+    "temporary_root_removed": true,
+    "adb_shared_log": "/private/var/folders/kg/sjpsnph952bczrr6s_t90c3m0000gn/T/adb.501.log",
+    "adb_policy": "Removed only PID 20796 block; preserved 15 pre-existing startup blocks at /private/var/folders/kg/sjpsnph952bczrr6s_t90c3m0000gn/T/adb.501.log."
+  },
+  "historical_documents_unchanged": 14
+}

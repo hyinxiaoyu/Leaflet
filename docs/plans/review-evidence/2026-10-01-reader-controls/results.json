@@ -1,0 +1,52 @@
+{
+  "checks": {
+    "changed-ktlint-format": 0,
+    "changed-ktlint": 0,
+    "core-compile": 0,
+    "jvm-contracts": 0,
+    "dependency-resources": 0,
+    "resources-values": 0,
+    "resources-values-zh": 0,
+    "full-flavor-resource": 0,
+    "full-resource-link": 0,
+    "full-r-compile": 0,
+    "full-reader-compile": 0,
+    "menu-contract-compile": 0,
+    "menu-motion-contract": 0,
+    "full-interaction-compile": 0,
+    "eink-flavor-resource": 0,
+    "eink-resource-link": 0,
+    "eink-r-compile": 0,
+    "eink-reader-compile": 0,
+    "eink-interaction-compile": 0,
+    "gradle-gate": 1
+  },
+  "source_sha256": {
+    "app/src/test/kotlin/io/leaflet/reader/ui/reader/ReaderMenuMotionTest.kt": "1caf7b4ac87266e7fab3e36192265ff67c4d0442a2db1ad409ff5f3a99a4bb8c",
+    "core/reader/src/main/kotlin/io/leaflet/reader/PageGesture.kt": "6b241efd57d34e508af94edbc4eaa053413a539ce00f89c3bb7175e8aff8e5bd",
+    "core/reader/src/test/kotlin/io/leaflet/reader/PageGestureTest.kt": "be0a91928fd2d37defb94506ade9b5e2bc5c03aa772d722cb50841f7732dcfe6",
+    "app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderPageGestures.kt": "4bc4705c3ecc1cb5cf96d7434be9af34142a4830eba7068011fc5dc7bcdb3818",
+    "app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderScreen.kt": "56d0d675de2fe6400bd517340106479a4ff58ef4f01c7c9980108cca9beb534b",
+    "app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderControls.kt": "a0e15ae0e9aa5e1e0e36276ea735db9dfed202a424d0984846a3c6ed6eaa35b6",
+    "app/src/androidTest/kotlin/io/leaflet/reader/ui/ReaderControlsPageTest.kt": "16042b777dd3aa52062468b09773c5be7ed6717d9375695da12c4889542a268f",
+    "app/src/main/res/values/strings.xml": "3e1aa31f978b37b524baf1608d846ceed4a042ff5c8ddf153205bd9e9452fd9f",
+    "app/src/main/res/values-zh/strings.xml": "311560f605f1acac08db77e444752658ea22c7291ee4e0543ed615a8b0ec73b5"
+  },
+  "android_tests": "COMPILED_ONLY; no device execution",
+  "scope": "Fresh core/Reader/interaction/control component compilation and actual resource linking over cached resolved dependencies; not APK assembly",
+  "cleanup": "COMPLETE: all compiler/resource/Gradle scratch output removed; declared reports/evidence retained",
+  "jvm_tests_executed": 42,
+  "page_tests_compiled_not_executed": 27,
+  "documentation_sha256": {
+    "docs/plans/reader-controls-product-wave2.md": "cbdc52fa09235b983f5b3414c2461f280e367956745b736d85f50100bc4255cc",
+    "docs/plans/reader-controls-product-wave2.zh.md": "d7bfdcf47e1e56703ecbba804a7505da955fad8be1aed42bdd17081d991e50c0",
+    "docs/requirements/REQ-0014-reader-controls.md": "10ffdd1ea544964a9639f2acd9b9d5f8b9d02319de4f2ae9db7c82a159673b17",
+    "docs/requirements/REQ-0014-reader-controls.zh.md": "6c4b242b7fc3867e1f25bdf0c7f14331f018a524964795c29565a06c7cfbb760",
+    "docs/requirements/README.md": "ad551e531b0a2a0ecc5ebf610572bb4ea2af8f9e0729b5368e91822115dc61a8",
+    "docs/requirements/README.zh.md": "bd58c7d779f5563f452bff8d5d3832c10eba9b27d058e0a117e216d4db6a11b9",
+    "docs/architecture/reader.md": "8d8bf40f2773b363c6cf026200cdd0a84783b40a56b8b6a0f123bdc2a058cf88",
+    "docs/architecture/reader.zh.md": "1f00daff48b1cc9ab52c43f4ad06f08c64e36505518a52c45f41234a2d6106b7",
+    "CHANGELOG.md": "ee259790079a4e5dde12fa744e0c5fb978f14d5a5a6a86b65096b0d91acc48d4",
+    "CHANGELOG.zh.md": "5a63b8e4a7550d441a199e73ef777e0b6e75870328b440c9111f6e9ce851ea26"
+  }
+}

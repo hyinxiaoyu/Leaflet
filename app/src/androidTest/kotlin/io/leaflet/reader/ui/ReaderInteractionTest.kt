@@ -6,10 +6,13 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -187,6 +190,77 @@ class ReaderInteractionTest {
     /** (value, maxValue) of every horizontal scroller on the page. */
     private fun horizontalScrolls(): List<Pair<Float, Float>> = PageViews.horizontalScrollOffsets(compose)
 
+    // -- release-triggered ebook gestures ------------------------------------
+
+    @Test
+    fun bodySwipeStaysStillUntilReleaseAndThenTurnsExactlyOnce() {
+        val settings = pageSettingsViewModel()
+        openPage(numberedDocument(60), settings)
+        assertEquals("fresh Reader uses ebook paging", ReadingMode.PAGE_TURN.stored, flowValue(settings.readingMode))
+        val rect = listRect()
+        val (anchor, before) = bottomAnchor()
+        val from = Offset(rect.left + rect.width * 0.8f, rect.center.y)
+        val to = Offset(rect.left + rect.width * 0.2f, rect.center.y)
+        compose.onRoot().performTouchInput {
+            down(from)
+            advanceEventTime(100)
+            moveTo(to)
+        }
+        compose.waitForIdle()
+        assertEquals("body must not track the finger", before, anchorAfter(anchor), 2f)
+        compose.onRoot().performTouchInput { up() }
+        compose.waitForIdle()
+        val swipeDistance = before - anchorAfter(anchor)
+        assertTrue("release advances a screen", swipeDistance > 0f)
+        tapPrev()
+        val tapDistance = measuredTurnDistance()
+        assertEquals("one swipe and one tap have the same page distance", tapDistance, swipeDistance, 2f)
+        compose.onRoot().performTouchInput {
+            swipe(to, from, durationMillis = 200)
+        }
+        compose.waitForIdle()
+        assertEquals("swipe right returns to the previous screen", before, anchorAfter(anchor), 2f)
+    }
+
+    @Test
+    fun sidePageMarginsAreActiveTapZones() {
+        val settings = pageSettingsViewModel()
+        openPage(numberedDocument(60), settings)
+        usePageTurnMode(settings)
+        val area = compose.onNodeWithTag("reader.gestures").fetchSemanticsNode().boundsInRoot
+        val (anchor, before) = bottomAnchor()
+        compose.onRoot().performTouchInput { click(Offset(area.right - 1f, area.center.y)) }
+        compose.waitForIdle()
+        assertTrue("right margin turns forward", anchorAfter(anchor) < before)
+        compose.onRoot().performTouchInput { click(Offset(area.left + 1f, area.center.y)) }
+        compose.waitForIdle()
+        assertEquals("left margin returns backward", before, anchorAfter(anchor), 2f)
+    }
+
+    @Test
+    fun shortVerticalAndHeldBodyGesturesNeverTurn() {
+        val settings = pageSettingsViewModel()
+        openPage(numberedDocument(60), settings)
+        usePageTurnMode(settings)
+        val rect = listRect()
+        val (anchor, before) = bottomAnchor()
+        val from = Offset(rect.right - 20f, rect.center.y)
+        val shortDragPx = 24f * context.resources.displayMetrics.density
+        for (end in listOf(from + Offset(-shortDragPx, 0f), from + Offset(0f, -100f))) {
+            compose.onRoot().performTouchInput { swipe(from, end, durationMillis = 150) }
+            compose.waitForIdle()
+            assertEquals("rejected drag must not fall through to tap", before, anchorAfter(anchor), 2f)
+        }
+        compose.onRoot().performTouchInput {
+            down(from)
+            advanceEventTime(600)
+            moveTo(from + Offset(-100f, 0f))
+            up()
+        }
+        compose.waitForIdle()
+        assertEquals("held gesture never turns", before, anchorAfter(anchor), 2f)
+    }
+
     // -- overlap / distance ---------------------------------------------------
 
     /**
@@ -320,7 +394,9 @@ class ReaderInteractionTest {
     fun continuousModeSideZonesDoNotTurn() {
         val settings = pageSettingsViewModel()
         openPage(numberedDocument(40), settings)
-        // Default reading mode is CONTINUOUS_SCROLL: no explicit switch here.
+        compose.runOnIdle { settings.setReadingMode(ReadingMode.CONTINUOUS_SCROLL.stored) }
+        awaitSetting(ReadingMode.CONTINUOUS_SCROLL.stored) { flowValue(settings.readingMode) }
+        compose.waitForIdle()
         val before = firstBlock()
         repeat(3) { tapNext() }
         repeat(3) { tapPrev() }
@@ -636,5 +712,167 @@ class ReaderInteractionTest {
         compose.onNodeWithText("Tap zones").assertDoesNotExist()
         assertEquals("the dismissing tap must not turn the page", before, firstBlock())
         awaitBoolean(true) { flowValue(settings.tapZonesHintSeen) }
+    }
+
+    // -- code review 2026-09-30: overlay occlusion regressions ---------------
+
+    /** Root-relative rect of the reader chrome layer carrying [tag]. */
+    private fun chromeBounds(tag: String): androidx.compose.ui.geometry.Rect = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+
+    /**
+     * CR-20260930-01/02/03 closure helper: the topmost composed body line must
+     * start at or below the bottom edge of the top chrome. Body text renders
+     * through `AndroidView` TextViews, which the plain view walk sees; Compose
+     * chrome text does not appear there, so this measures the body alone.
+     */
+    private fun assertBodyStartsBelowTopChrome(step: String) {
+        val chrome = chromeBounds(io.leaflet.reader.ui.reader.ReaderChromeTags.TOP_OVERLAY)
+        val tops = PageViews.textTopsByPrefix(compose, "")
+        assertTrue("$step: no body text composed", tops.isNotEmpty())
+        val highest = tops.minOf { it.second }
+        assertTrue(
+            "$step: body text starts at $highest, behind the top chrome ending at ${chrome.bottom}",
+            highest >= chrome.bottom - 1f,
+        )
+    }
+
+    /** The lowest composed body line must end at or above the bottom chrome. */
+    private fun assertBodyEndsAboveBottomChrome(step: String) {
+        val chrome = chromeBounds(io.leaflet.reader.ui.reader.ReaderChromeTags.BOTTOM_OVERLAY)
+        val rects = PageViews.textRectsByPrefix(compose, "")
+        assertTrue("$step: no body text composed", rects.isNotEmpty())
+        val lowest = rects.maxByOrNull { it.second.bottom }!!
+        assertTrue(
+            "$step: '${lowest.first}' ends at ${lowest.second.bottom}, behind the bottom chrome starting at ${chrome.top}",
+            lowest.second.bottom <= chrome.top + 1f,
+        )
+    }
+
+    /**
+     * CR-20260930-01: the tail clamp must not stop while the last lines are still
+     * behind the bottom chrome. Repeated forward turns have to reveal the final
+     * line above the footer, and above the reading menu once it is open, before
+     * further turns become no-ops.
+     */
+    @Test
+    fun tailTurnRevealsTheLastLineAboveTheFooterAndTheOpenMenu() {
+        val settings = pageSettingsViewModel()
+        openPage(numberedDocument(40), settings)
+        usePageTurnMode(settings)
+
+        // Zero-height chrome while the menu is closed: reach the tail, then prove
+        // the last line is clear of the footer and that further turns are no-ops.
+        repeat(30) { tapNext() }
+        assertBodyEndsAboveBottomChrome("menu closed")
+        val atTail = firstBlock()
+        tapNext()
+        assertEquals("the tail must be clamped once the last line is revealed", atTail, firstBlock())
+
+        // With the reading menu open the reserved tail gap grows; the tail must
+        // still be revealable above it (this is the case the fixed 32 dp gap lost).
+        tapCenter()
+        compose.waitForIdle()
+        assertTrue("the reading menu must be open", chromeBounds(io.leaflet.reader.ui.reader.ReaderChromeTags.BOTTOM_OVERLAY).height > 0f)
+        repeat(5) { tapNext() }
+        assertBodyEndsAboveBottomChrome("menu open")
+        val openMenuTail = firstBlock()
+        tapNext()
+        assertEquals("the tail must stay clamped with the menu open", openMenuTail, firstBlock())
+    }
+
+    /**
+     * CR-20260930-02: choosing a chapter in the table of contents must land the
+     * heading below the top chrome — the reading menu (and its title overlay)
+     * closes on the jump, so the heading is not covered — and the following page
+     * turn must keep the body clear of the chrome.
+     */
+    @Test
+    fun tocLandingIsNotCoveredByTheTopChrome() {
+        val settings = pageSettingsViewModel()
+        val body =
+            buildString {
+                append("# Interaction Proof\n\n")
+                for (i in 1..12) {
+                    append("## Section $i\n\n")
+                    repeat(4) { append("Paragraph %02d body alpha beta gamma delta.\n\n".format(i)) }
+                }
+            }
+        openPage(body, settings, docId = "toc-cover.md", expect = "Section 1")
+        usePageTurnMode(settings)
+
+        tapCenter()
+        compose.onNodeWithText("Contents").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Section 4").performClick()
+        compose.waitForIdle()
+
+        // The menu closed with the jump, so nothing overlays the heading…
+        compose.onNodeWithText("Contents").assertDoesNotExist()
+        val heading =
+            PageViews.textRectsByPrefix(compose, "Section 4").firstOrNull()
+                ?: error("the TOC landing heading is not composed")
+        val chrome = chromeBounds(io.leaflet.reader.ui.reader.ReaderChromeTags.TOP_OVERLAY)
+        assertTrue(
+            "the landing heading starts at ${heading.second.top}, behind the top chrome ending at ${chrome.bottom}",
+            heading.second.top >= chrome.bottom - 1f,
+        )
+        // …and the turn that follows keeps the body below the chrome too.
+        tapNext()
+        assertBodyStartsBelowTopChrome("turn after the TOC jump")
+    }
+
+    /**
+     * CR-20260930-03: a search hit in the FIRST block cannot be revealed by
+     * scrolling — the list is already at its head. The reserved headroom under
+     * the search bar has to keep it visible, in both reading modes, and after
+     * stepping away to a later match and back.
+     */
+    @Test
+    fun firstBlockSearchMatchStaysBelowTheSearchBar() {
+        val settings = pageSettingsViewModel()
+        val body =
+            buildString {
+                append("needle in block zero alpha beta gamma.\n\n")
+                for (i in 2..30) {
+                    val needle = if (i % 10 == 0) "needle" else "alpha"
+                    append("Paragraph %02d $needle beta gamma delta epsilon.\n\n".format(i))
+                }
+            }
+        val vm = openPage(body, settings, docId = "head-search.md", expect = "needle in block zero")
+
+        // Search is opened through the real UI (centre tap -> Search) and typed
+        // into the real field; only the stepping uses the ViewModel API.
+        tapCenter()
+        compose.onNodeWithText("Search").performClick()
+        compose.waitForIdle()
+        compose.onAllNodes(androidx.compose.ui.test.hasSetTextAction()).onFirst()
+            .performTextInput("needle")
+        compose.waitUntil(timeoutMillis = 15_000) { vm.search.value.matches.size >= 3 }
+        compose.waitForIdle()
+
+        fun assertCurrentMatchBelowChrome(step: String) {
+            val current = vm.search.value.current ?: error("no current search match")
+            val document = (vm.ui.value as ReaderUiState.Content).document
+            val prefix = document.blockTexts[current.blockIndex]
+            val tops = PageViews.textTopsByPrefix(compose, prefix)
+            val chrome = chromeBounds(io.leaflet.reader.ui.reader.ReaderChromeTags.TOP_OVERLAY)
+            assertTrue("$step: current match is composed", tops.isNotEmpty())
+            assertTrue("$step: current match is below the search bar ($tops / $chrome)", tops.all { it.second >= chrome.bottom - 1f })
+        }
+
+        // Check the landing block; preceding context can legitimately remain behind the overlay.
+        assertCurrentMatchBelowChrome("first match at the document head")
+
+        compose.runOnIdle { vm.stepSearch(true) }
+        compose.waitForIdle()
+        assertCurrentMatchBelowChrome("later match")
+        // Search wraps: one previous step returns from match 2 to match 1.
+        compose.runOnIdle { vm.stepSearch(false) }
+        compose.waitForIdle()
+        assertEquals(0, vm.search.value.currentIndex)
+        assertCurrentMatchBelowChrome("back at the first match")
+
+        usePageTurnMode(settings)
+        assertCurrentMatchBelowChrome("page-turn mode")
     }
 }

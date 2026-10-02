@@ -1,0 +1,43 @@
+{
+  "checks": {
+    "changed-ktlint-format": 0,
+    "changed-ktlint": 0,
+    "core-compile": 0,
+    "jvm-contracts": 0,
+    "full-reader-compile": 0,
+    "full-interaction-compile": 0,
+    "eink-reader-compile": 0,
+    "eink-interaction-compile": 0,
+    "resources-values": 0,
+    "resources-values-zh": 0,
+    "gradle-gate": 1
+  },
+  "source_sha256": {
+    "core/storage/src/main/kotlin/io/leaflet/storage/prefs/ReaderSettings.kt": "1d47b536911750cffcc2df14e14fe91e54b64a4e93448d076ac17bc027531645",
+    "app/src/main/kotlin/io/leaflet/reader/SettingsStore.kt": "43a4342743859d19b525a5e6d1cb3c6195f12959ebe355b2658cf53161bf803a",
+    "core/storage/src/test/kotlin/io/leaflet/storage/prefs/ReaderSettingsTest.kt": "052c83f5382a9ca335490261959240d2a4cabe84d2edb13e60e1c2613be8f463",
+    "app/src/test/kotlin/io/leaflet/reader/SettingsStoreReadingModeTest.kt": "4b3680f42566bd0cbe9dfc6f37fa4855866bcd50afd37d13de50e0fb5c5a0aa3",
+    "core/reader/src/main/kotlin/io/leaflet/reader/ReadingMode.kt": "512434377ac2121ae6514c7af9fc4f5ba567b51dcc1b64c33149686f8f677655",
+    "core/reader/src/test/kotlin/io/leaflet/reader/PageTurnTest.kt": "f9448085faffc727195b1c9e210c986362149229a825f37ce311f40cf9c93bc4",
+    "core/reader/src/main/kotlin/io/leaflet/reader/PageGesture.kt": "b5df823976644a3d805c2e8534f2bff6f6498218b6c5b118d17fe3f66e6f85dc",
+    "core/reader/src/test/kotlin/io/leaflet/reader/PageGestureTest.kt": "609f1e3d1ee578885ca1785361d4addc337dc4412b1bdad3db5062b15ca8c030",
+    "app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderPageGestures.kt": "4138cf8b6cb026900834de5cda38aabd41b08c7e13346be74a74abefe6e9c87a",
+    "app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderScreen.kt": "4086b7ba4434f582dfbd55711ad8f94c8ba46a0b8c9c6ed9771f1398e75f6699",
+    "app/src/androidTest/kotlin/io/leaflet/reader/ui/ReaderInteractionTest.kt": "74929cc057cf25270c1bd59d7d6fa91750ef49297a65a1ad456fa0da673cfc49",
+    "app/src/main/res/values/strings.xml": "6b6f695018941a0ab81ce4e013d32b270bce73fa891dcbc3ccc004a9e27dd6ca",
+    "app/src/main/res/values-zh/strings.xml": "2ee770d1cb242cba4d28b869360849545d53352203e7512a8698960a72bea463"
+  },
+  "android_tests": "COMPILED_ONLY; no device execution",
+  "scope": "Fresh core/Reader/interaction component compilation over cached resolved dependencies; not APK assembly",
+  "cleanup": "COMPLETE: all /tmp/leaflet-page-turn-* compiler/resource/Gradle scratch directories removed; declared delivery evidence retained",
+  "documentation_sha256": {
+    "docs/requirements/REQ-0005-page-turn.md": "27a09ec640ff32fff0033ec472c754a36bbed73e00224055a6425612e8bcfd2a",
+    "docs/requirements/REQ-0005-page-turn.zh.md": "a0821736e25e60e0f8c55b712841d57993a7c98a238de6db9d67b1c4faf72c66",
+    "docs/plans/page-turn-interaction-followup.md": "4879297aa1e1ed075416df2d07eaf976347c99b01f18f11b1c560ace31ccf417",
+    "docs/plans/page-turn-interaction-followup.zh.md": "4295c7eaefa517ec285a2ab6a4b8c9040c6e261a2dacf8e99bb87256b36879aa",
+    "docs/requirements/README.md": "6d154c8b9b30b5f8fd43b47397979954c00a4dc3cda9b62c3d07e7bf9892acd5",
+    "docs/requirements/README.zh.md": "19180f682db4b1e32845ed485eab108b840d150df8ec92579b546815f702a245",
+    "CHANGELOG.md": "d8eee81aa556dbf9589c0ddf55dd277dddbc18f024d34a819aa4abb755cba64b",
+    "CHANGELOG.zh.md": "40f17be36bff18c3338e5df28692bb2b342b6538dafae3f3dca9c2c98cd41d4e"
+  }
+}

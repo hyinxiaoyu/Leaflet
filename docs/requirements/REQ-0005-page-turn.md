@@ -2,7 +2,7 @@
 
 English | [中文](REQ-0005-page-turn.zh.md)
 
-Status: READY
+Status: IN_PROGRESS
 Priority: P0
 Milestone: M1 (depends on T07; delivered in T08 for navigation and interaction arbitration)
 
@@ -22,8 +22,9 @@ E-Ink is poorly suited to long smooth-scroll gestures: repeated refreshes during
 
 - Use `scrollBy ±(viewportHeight − overlap)`. Default overlap is 5%; permitted range is 3–8%. It may be a fixed constant or a limited setting, but the value must be testable.
 - Divide the page into left/center/right tap zones: previous page, menu toggle, next page. Default to thirds; future user adjustment is reserved, but no zone editor is in this REQ.
-- Provide `CONTINUOUS_SCROLL` and `PAGE_TURN`; E-Ink defaults to PAGE_TURN and Standard to continuous scroll. Mode switches preserve position.
+- Provide `CONTINUOUS_SCROLL` and `PAGE_TURN`; both E-Ink and Standard default to PAGE_TURN when no explicit choice exists. Mode switches preserve position.
 - Give links, buttons, code-copy buttons, and horizontal table/code gestures priority over page-turn zones. Long-press never turns a page.
+- In PAGE_TURN, an unconsumed horizontal body swipe turns once on release: swipe left goes forward, swipe right goes backward. The body remains still during the gesture; page margins participate in the tap zones.
 - Clamp at document start/end. Account for system Insets, menu occlusion, rotation, and rapid repeated turns. E-Ink uses instant scrolling only.
 - Show static fine-grained reading progress, primarily a percentage, with throttled updates.
 
@@ -44,11 +45,12 @@ No editor, accounts/cloud sync, AI/RAG, PDF/EPUB, full annotation, plugins, libr
 - **FR-1 Algorithm:** `next: scrollBy(viewportHeight − overlap)` and `prev: scrollBy(−(viewportHeight − overlap))`; default overlap is 5% of viewport, bounded to 3–8%.
 - **FR-2 Visible height:** Use actual Reader viewport after system Insets and menu/progress obstruction. Recompute after rotation, menu visibility, or window changes.
 - **FR-3 Tap zones:** Left/center/right map to previous/menu/next. Default to equal thirds; record the actual implementation widths (currently unverified) and allow future adjustment.
-- **FR-4 Two modes:** Switch between continuous scroll and page turn. Defaults: EINK → PAGE_TURN, STANDARD → CONTINUOUS_SCROLL. Preserve the same ReadingPosition block/anchor.
+- **FR-4 Two modes:** Switch between continuous scroll and page turn. Defaults: EINK → PAGE_TURN, STANDARD → PAGE_TURN; preserve explicitly stored choices. Preserve the same ReadingPosition block/anchor.
 - **FR-5 Arbitration:** Links/buttons/code-copy/horizontally scrollable tables/code consume their touches first. Horizontal scroll never turns the page; long-press at or above the platform threshold never turns it.
 - **FR-6 E-Ink scrolling:** Page turns and restoration are immediate (`scrollToPositionWithOffset`-like); no `smoothScroll` family calls.
 - **FR-7 Boundaries:** Clamp at top and bottom without blank jitter. Repeated rapid turns remain within document bounds. Account for end-of-list clamp behavior (for example, Pilcrow spacer/headroom lessons) and record the chosen equivalent.
 - **FR-8 Progress:** Show static percentage plus a fine progress bar. Throttle updates using position-save cadence or at least one second; do not redraw frequently.
+- **FR-9 Body swipes:** Require horizontal intent beyond touch slop and a final displacement of at least `max(48 dp, 2 × touchSlop)`. Cancel on vertical intent, child consumption, additional pointers, or reaching the platform long-press timeout before horizontal intent is established. Recognize at most one action on release. Use the latest menu/viewport/overlap values. CONTINUOUS_SCROLL retains scrolling and center-menu taps; horizontal body swipes do not turn pages.
 
 ## Acceptance Criteria
 
@@ -59,6 +61,7 @@ No editor, accounts/cloud sync, AI/RAG, PDF/EPUB, full annotation, plugins, libr
 - **AC-5:** Switching PAGE_TURN ↔ CONTINUOUS keeps the same block/anchor (`blockIndex` unchanged), not the document top.
 - **AC-6:** E-Ink invokes no smooth-scroll APIs and shows no smooth-position animation.
 - **AC-7:** Record measured distances, ratios, counts, and tolerances; no vague “supports X.”
+- **AC-8:** A body swipe left/right moves exactly one forward/backward screen after release, with no intermediate document movement. Tapping the side page margin also turns. Short/vertical/long/multi-touch/child-consumed gestures do not turn. Existing wide-table/code gestures and continuous scrolling remain intact.
 
 ## Edge Cases
 
@@ -70,7 +73,7 @@ Use instant jumps, static progress, and throttled updates. Call `EInkController.
 
 ## Standard Android Considerations
 
-Continuous scroll is default. Normal scroll physics are allowed through DisplayProfile/MotionPolicy. The same three tap zones and center-menu behavior apply.
+PAGE_TURN is the default when no choice is stored; continuous scroll remains selectable. Normal scroll physics are allowed through DisplayProfile/MotionPolicy. The same three tap zones and center-menu behavior apply.
 
 ## Performance Considerations
 
@@ -103,6 +106,28 @@ FR-3 zones with a mode-aware subtitle; its dismissal is persisted and the decisi
 `TapZones.shouldShowHint`. Position semantics, the FR-1 distance formula, and the FR-6 no-smooth rule
 are unchanged. See [ux-06-delivery.md](../plans/ux-06-delivery.md); the instrumented acceptance tests
 compile but are NOT_RUN without a device, and E-Ink hardware remains NOT_RUN.
+
+## Code review follow-up (2026-09-30)
+
+The [reader code review](../plans/code-review-2026-09-30.md) found three overlay defects and one default
+defect in this REQ's area; all four are fixed. FR-2/FR-7: the list's body inset now reserves the
+measured notices/search-bar headroom and a tail gap of `max(32 dp, measured bottom chrome + 8 dp)`,
+and the head/tail clamp asks the list for its real scroll boundary
+(`canScrollForward`/`canScrollBackward`), so the last line is always revealable above the footer and
+an open menu (CR-20260930-01) and a first-block search match is visible below the search bar
+(CR-20260930-03). FR-4: an absent stored reading mode now defaults per display mode through
+`ReaderSettings.defaultReadingModeFor` (EINK → `PAGE_TURN`, STANDARD → `CONTINUOUS_SCROLL`), with a
+stored choice still winning (CR-20260930-05). FR-8 progress and FR-1's distance formula are
+unchanged. The JVM regressions for the FR-4 default pass; the three device regressions
+(`ReaderInteractionTest.tailTurnRevealsTheLastLineAboveTheFooterAndTheOpenMenu`,
+`tocLandingIsNotCoveredByTheTopChrome`, `firstBlockSearchMatchStaysBelowTheSearchBar`) compile but
+are NOT_RUN without a device, and E-Ink hardware remains NOT_RUN.
+
+## Ebook interaction follow-up (2026-10-01)
+
+The user requested ebook-style side taps or horizontal swipes. The current default is PAGE_TURN in both display modes for an absent/invalid choice; an explicit valid continuous-scroll preference is retained. This supersedes the Standard first-run default described in the dated September evidence above. One release-triggered detector covers the whole reader width, including page margins, and leaves consumed child gestures alone. A latest-state callback and serialized turns use current viewport/chrome/overlap values. No layout-pagination engine, animated transition or new storage format is introduced.
+
+See [page-turn-interaction-followup.md](../plans/page-turn-interaction-followup.md) for the scoped implementation and verification. Device interaction execution remains pending; status is IN_PROGRESS rather than DONE.
 
 ## Open Questions
 

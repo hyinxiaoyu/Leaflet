@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original 24 dp document glyph for the browse rows (REQ-0012 FR-5).
+     A page with a folded corner and two text rules cut out with evenOdd:
+     no icon-library dependency and no copied third-party icon path. Tinted
+     by Compose `Icon`. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M6,2 H14 L19,7 V22 H6 Z M8.5,12 H16.5 V13.5 H8.5 Z M8.5,16 H16.5 V17.5 H8.5 Z" />
+</vector>

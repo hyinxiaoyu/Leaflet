@@ -1,0 +1,6 @@
+app/src/main/kotlin/io/leaflet/reader/ui/reader/ImageLoader.kt:174:13: warning: condition is always 'false'.
+        if (bitmap == null) return DeviceImage.Failed(ImageFailure.BROKEN)
+            ^^^^^^^^^^^^^^
+app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderScreen.kt:126:21: warning: 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+                    ^^^^^^^^^^^^^^^^^^^

@@ -88,6 +88,17 @@ JVM tests assert every field in both presets and that disabled effects remain of
 
 Requires T02 flavors, minimal policy, and CI; REQ-0005 page-turn behavior uses `pageTurnBehavior`; REQ-0002/0003 loading and restoration use policy. Enables T12 Settings/About and T13 release candidate.
 
+## Code review follow-up (2026-10-01)
+
+The [2026-10-01 follow-up review](code-review-2026-10-01.md) found that `NavHost` still used the
+navigation library's default enter/exit transitions (`fadeIn`/`fadeOut(tween(700))` in
+navigation-compose 2.7.7, verified in its bytecode), bypassing FR-2/FR-4 on every route swap.
+`LeafletTheme` now publishes the resolved `MotionPolicy` as `LocalMotionPolicy`, and `NavHost`
+supplies all four transitions explicitly from that policy. FR-2 keeps the decision centralized and
+§Standard adds no page transitions in M0/M1, so both display modes resolve to instant swaps; a
+Standard animation policy in a later milestone changes that one place. Device transition capture
+remains NOT_RUN (it needs frame-level observation on hardware).
+
 ## Open Questions
 
 - Ripple strength was open; T12 resolved it to OFF (`EinkDisplayProfile.rippleEnabled=false`, `LocalIndication provides null`, covered by `einkPresetDisablesEverythingAnimated`). No “very weak” variant remains.

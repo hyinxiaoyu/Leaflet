@@ -78,6 +78,17 @@ internal object PageViews {
     /** Text content of every TextView in the composed tree, in traversal order. */
     fun viewTexts(rule: ComposeContentTestRule): List<String> = allTextViews(rule).map { it.text.toString() }
 
+    /** UX-06: document headings remain native views when the transient title overlay is hidden. */
+    fun hasVisibleText(
+        rule: ComposeContentTestRule,
+        needle: String,
+    ): Boolean {
+        val views = allTextViews(rule)
+        return onMain {
+            views.any { it.text.contains(needle) && it.isShown && it.getGlobalVisibleRect(android.graphics.Rect()) }
+        }
+    }
+
     /** TextViews whose text contains [needle]. */
     fun textViewsContaining(
         rule: ComposeContentTestRule,

@@ -3,24 +3,23 @@ package io.leaflet.reader.ui.reader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -37,17 +36,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -64,8 +70,6 @@ import io.leaflet.markdown.BlockKind
 import io.leaflet.markdown.ReaderStyle
 import io.leaflet.model.DisplayMode
 import io.leaflet.model.DocumentId
-import io.leaflet.reader.ContentGesture
-import io.leaflet.reader.GestureArbitration
 import io.leaflet.reader.PageTurn
 import io.leaflet.reader.PositionRestore
 import io.leaflet.reader.R
@@ -77,18 +81,23 @@ import io.leaflet.reader.TocNavigation
 import io.leaflet.reader.TurnIntent
 import io.leaflet.reader.keepBlock
 import io.leaflet.storage.prefs.ReaderSettings
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Reader screen (T07 body, T08 navigation): loading / content / failed+retry /
  * degraded banner, plus the TOC drawer, the reading-mode switch and the
  * three tap zones (REQ-0005/REQ-0006).
  *
- * Restore (REQ-0003 FR-3): on Content the list performs one instant
- * `scrollToItem(restoreBlock)` — instant, never smooth (E-Ink rule). Scroll
+ * Restore (REQ-0003 FR-3): the list measures the restored block, then projects
+ * its character address through the current line layout — instant, never smooth.
+ * Scroll
  * observations feed [ReaderViewModel.onVisibleBlock] (throttled save); the
  * lifecycle observer flushes on pause/stop (exit flush), and `DisposableEffect`
  * flushes on dispose (back navigation / route pop).
@@ -125,6 +134,7 @@ fun ReaderScreen(
         lifecycle.addObserver(observer)
         onDispose {
             viewModel.flushPosition()
+            viewModel.onReaderExit(id)
             lifecycle.removeObserver(observer)
         }
     }
@@ -175,42 +185,83 @@ private fun ReaderContent(
     imageLoader: ImageLoader? = null,
     onOpenExternal: (String) -> Unit = { url -> openExternal(url, viewModel) },
 ) {
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    // One-shot restore scroll: instant jump to the planned block. Keyed on
-    // the document id so rotation (same ViewModel, same Content) does not
-    // re-scroll — position is preserved by the list itself. The list state
-    // is NOT keyed on the reading mode either, so a CONTINUOUS↔PAGE_TURN
-    // switch keeps the same first visible block (REQ-0005 AC-5).
     val docId = state.document.documentId.value
-    // UX-06 overlay chrome: measured obstruction of the reading list. Both are
-    // 0 when that chrome is absent; they only feed the turn distance and the
-    // jump reveal, never a layout decision, so writing them never resizes the
-    // list.
+    val listState = key(docId) { rememberLazyListState() }
+    val scope = rememberCoroutineScope()
+    // Scope the list to its document, not the reading mode. A remount projects
+    // the latest logical address through the new layout without reparsing;
+    // a CONTINUOUS↔PAGE_TURN switch keeps the existing list (REQ-0005 AC-5).
+    val positionGeometry = remember(docId) { BlockPositionGeometry() }
+    var positionRestored by remember(docId) { mutableStateOf(false) }
+    var restoreEcho by remember(docId) { mutableStateOf<Pair<Int, Int>?>(null) }
+    // UX-06 overlay chrome, measured in pixels:
+    // - `topChromePx` is the whole top overlay (title + notices + search bar);
+    //   it is what a page turn subtracts as occlusion.
+    // - `topInsetPx` is the part of that overlay which is reserved as list
+    //   headroom (notices + search bar, never the title). The body is inset by
+    //   it, so a notice or the search bar can never hide content — including a
+    //   match in the very first block, which no scroll can reveal at the head
+    //   (CR-20260930-03). The title is deliberately NOT part of the inset: it
+    //   only covers the body while the reading menu is open, so toggling that
+    //   menu still cannot move the body.
+    // - `bottomChromePx` sizes the tail gap (CR-20260930-01).
+    // None of them is read during the list's own composition, so writing them
+    // never changes the list's measured geometry.
     var topChromePx by remember(docId) { mutableStateOf(0) }
+    var topInsetPx by remember(docId) { mutableStateOf(0) }
     var bottomChromePx by remember(docId) { mutableStateOf(0) }
 
-    // UX-06: the search bar and notices float over the list, so an instant jump
-    // that stops at the viewport top would hide its landing block behind them.
-    // This shifts such a jump down by the measured top chrome.
-    suspend fun revealBelowTopChrome() {
-        val obscured = topChromePx
-        if (obscured > 0) listState.scroll { scrollBy(-obscured.toFloat()) }
+    /**
+     * Instant jump that lands [target] below the chrome covering the top of the
+     * body (UX-06, CR-20260930-02/03). `scrollToItem`'s documented offset is
+     * positive = forward = item further up, so a negative offset of the chrome
+     * pushes the landing block down by exactly that much. At the document head no
+     * negative scroll is possible, which is why the notices/search bar also
+     * reserve their own [topInsetPx] headroom.
+     *
+     * [revealPx] defaults to the measured top chrome. A caller that changes the
+     * chrome in the same action (the TOC jump closes the reading menu) passes the
+     * chrome that will actually remain, so the landing is not left too low.
+     */
+    suspend fun jumpToBlockRevealed(
+        target: Int,
+        revealPx: Int = topChromePx,
+    ) {
+        listState.scrollToItem(target, if (revealPx > 0) -revealPx else 0)
     }
 
     LaunchedEffect(docId) {
-        val target = state.restoreBlock.coerceIn(0, (state.document.blocks.size - 1).coerceAtLeast(0))
-        if (target > 0) listState.scrollToItem(target)
-    }
-    // Cross-document fragment (`other.md#anchor`, T10): applied once when the
-    // target content lands, via the same instant scroll + persist seam.
-    LaunchedEffect(docId) {
-        val fragment = viewModel.takePendingFragment() ?: return@LaunchedEffect
-        val target = io.leaflet.reader.FragmentMatch.resolve(state.document, fragment)
-        if (target != null) {
-            listState.scrollToItem(target)
-            viewModel.jumpToBlock(target)
+        // A handed-off fragment owns the initial landing; a simultaneous saved
+        // offset restore must not move the list back after that anchor jump.
+        val fragment = viewModel.takePendingFragment(state.document.documentId)
+        val fragmentTarget = fragment?.let { io.leaflet.reader.FragmentMatch.resolve(state.document, it) }
+        val currentLocation = viewModel.readingLocationFor(state.document.documentId)
+        val target =
+            (fragmentTarget ?: currentLocation?.blockIndex ?: state.restoreBlock)
+                .coerceIn(0, (state.document.blocks.size - 1).coerceAtLeast(0))
+        val restoredOffset = if (fragmentTarget == null) currentLocation?.blockOffset ?: state.restoreBlockOffset else 0
+        if (target > 0 || restoredOffset > 0 || fragmentTarget != null) listState.scrollToItem(target)
+        if (restoredOffset > 0 && state.document.blocks.isNotEmpty()) {
+            snapshotFlow { listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target } }
+                .filterNotNull().first()
+            // Placement/text layout follows the initial item measurement. Wait
+            // for it before projecting the saved character into new pixels.
+            withFrameNanos { }
+            val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+            if (item != null) {
+                val pixels =
+                    positionGeometry.scrollOffset(
+                        target,
+                        restoredOffset,
+                        item.size,
+                        state.document.blockTexts.getOrElse(target) { "" }.length,
+                    )
+                listState.scrollToItem(target, pixels)
+            }
         }
+        if (fragmentTarget != null) viewModel.jumpToBlock(target)
+        restoreEcho = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        positionRestored = true
     }
     // Same-document anchor jumps (T10): the ViewModel planned the scroll;
     // the screen executes it instantly (E-Ink rule) exactly once.
@@ -222,26 +273,47 @@ private fun ReaderContent(
     LaunchedEffect(docId, state.linkNotice, state.restoreBlock) {
         val target = viewModel.takePendingJump() ?: return@LaunchedEffect
         if (target in state.document.blocks.indices) {
-            listState.scrollToItem(target)
-            revealBelowTopChrome()
+            jumpToBlockRevealed(target)
         }
     }
     // Scroll observer → throttled save (REQ-0003 FR-2). Distinct + non-zero
     // progress guard: the initial restore jump is seeded in the ViewModel and
     // never writes.
     LaunchedEffect(docId) {
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .map { it }
+        snapshotFlow {
+            if (positionRestored) listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset else null
+        }
+            .filterNotNull()
             .distinctUntilChanged()
-            .filter { it >= 0 }
-            .collect { viewModel.onVisibleBlock(it) }
+            .collectLatest { address ->
+                // A character can land midway through a rendered line. Keep the
+                // original address until real movement, rather than saving the
+                // line start merely because restoration was observed.
+                if (address == restoreEcho) return@collectLatest
+                restoreEcho = null
+                withFrameNanos { }
+                val index = listState.firstVisibleItemIndex
+                val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return@collectLatest
+                val offset =
+                    positionGeometry.characterOffset(
+                        index,
+                        listState.firstVisibleItemScrollOffset,
+                        item.size,
+                        state.document.blockTexts.getOrElse(index) { "" }.length,
+                    )
+                viewModel.onVisiblePosition(index, offset, state.document.documentId)
+            }
     }
 
     val modeStored: String =
         if (settingsViewModel != null) {
-            settingsViewModel.readingMode.collectAsState(initial = ReaderSettings.READING_MODE_DEFAULT).value
+            // CR-20260930-05: the pre-read default follows the display mode, so a
+            // fresh E-Ink install does not show one continuous-scroll frame.
+            settingsViewModel.readingMode.collectAsState(
+                initial = ReaderSettings.defaultReadingModeFor(defaultDisplayMode),
+            ).value
         } else {
-            ReaderSettings.READING_MODE_DEFAULT
+            ReaderSettings.defaultReadingModeFor(defaultDisplayMode)
         }
     val mode = ReadingMode.of(modeStored)
     val overlap: Float =
@@ -326,7 +398,6 @@ private fun ReaderContent(
     // Static arrival highlight (REQ-0006): the TOC-jump target block renders
     // bold until the next jump or document change. No animation (E-Ink safe).
     var jumpedBlock by remember(docId) { mutableStateOf<Int?>(null) }
-    var tapWidthPx by remember(docId) { mutableStateOf(0) }
     // UX-06 first-run tap-zone onboarding: the stored flag decides, and a tap
     // dismissal hides it immediately without waiting for the write.
     val hintSeen: Boolean? =
@@ -336,7 +407,8 @@ private fun ReaderContent(
             null
         }
     var hintDismissed by remember(docId) { mutableStateOf(false) }
-    val showTapZoneHint = TapZones.shouldShowHint(hintSeen, hintDismissed)
+    var hintRequested by remember(docId) { mutableStateOf(false) }
+    val showTapZoneHint = hintRequested || TapZones.shouldShowHint(hintSeen, hintDismissed)
     // In-document search (T11/REQ-0008): bar + count + prev/next + close.
     // All search state resets on document switch via remember(docId);
     // the ViewModel additionally clears on open (FR-5).
@@ -350,45 +422,50 @@ private fun ReaderContent(
         val target = searchState.current ?: return@LaunchedEffect
         if (target.blockIndex in state.document.blocks.indices) {
             jumpedBlock = target.blockIndex
-            listState.scrollToItem(target.blockIndex)
-            // UX-06: keep the match visible below the floating search bar.
-            revealBelowTopChrome()
+            // UX-06 + CR-20260930-03: the reserved search-bar headroom keeps the
+            // match visible, including a match in block 0 at the document head.
+            jumpToBlockRevealed(target.blockIndex)
             viewModel.jumpToBlock(target.blockIndex)
         }
     }
 
     // `scrollBy`, never smooth. The viewport is read fresh from layoutInfo
-    // per turn, so rotation is picked up. UX-06: the chrome (title, notices,
-    // search bar, menu, progress footer) now FLOATS over the list instead of
-    // shrinking it, so the distance uses the VISIBLE height — the measured
-    // overlay heights are subtracted via [PageTurn.visibleHeightPx] (REQ-0005
-    // FR-2) and a turn never skips content hidden behind open chrome.
-    // Head/tail clamp: no-op at the ends, and LazyColumn itself cannot
-    // overshoot, so rapid repeated turns stop exactly at the tail.
+    // per turn, so rotation is picked up. UX-06: the chrome floats over the list
+    // instead of shrinking it, so the distance uses the VISIBLE height — the
+    // chrome that covers body content is subtracted via
+    // [PageTurn.visibleHeightPx] (REQ-0005 FR-2) and a turn never skips content
+    // hidden behind it. The head/tail clamp asks the list for its REAL scroll
+    // boundary (`canScrollForward`/`canScrollBackward`, CR-20260930-01) rather
+    // than inferring it from the last item's position: the tail gap reserves the
+    // measured bottom chrome, so a forward turn stays legal while the last lines
+    // still sit behind the footer/menu and stops only once they are revealed.
+    val pageTurnMutex = remember(docId) { Mutex() }
+
     fun turnPage(forward: Boolean) {
+        if (!positionRestored || showTapZoneHint) return
         scope.launch {
-            val info = listState.layoutInfo
-            val viewport = info.viewportSize.height
-            if (viewport <= 0) return@launch
-            val visible =
-                PageTurn.visibleHeightPx(
-                    totalHeightPx = viewport,
-                    topObscuredPx = topChromePx,
-                    bottomObscuredPx = bottomChromePx,
-                )
-            val distance = PageTurn.turnDistancePx(visible, overlap)
-            if (distance <= 0) return@launch
-            val atTop =
-                listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
-            val last = info.visibleItemsInfo.lastOrNull()
-            val atBottom =
-                last != null && last.index == info.totalItemsCount - 1 &&
-                    last.offset + last.size <= info.viewportEndOffset
-            if (forward && atBottom || !forward && atTop) return@launch
-            eink.onScrollStart(null)
-            listState.scroll { scrollBy((if (forward) distance else -distance).toFloat()) }
-            eink.onScrollEnd(null)
-            eink.onPageTurn(null)
+            pageTurnMutex.withLock {
+                val info = listState.layoutInfo
+                val viewport = info.viewportSize.height
+                if (viewport <= 0) return@withLock
+                val visible =
+                    PageTurn.visibleHeightPx(
+                        totalHeightPx = viewport,
+                        // The whole top overlay is unavailable to the body: the
+                        // reserved headroom (notices/search) plus the title that may
+                        // protrude over it.
+                        topObscuredPx = topChromePx,
+                        bottomObscuredPx = bottomChromePx,
+                    )
+                val distance = PageTurn.turnDistancePx(visible, overlap)
+                if (distance <= 0) return@withLock
+                if (forward && !listState.canScrollForward) return@withLock
+                if (!forward && !listState.canScrollBackward) return@withLock
+                eink.onScrollStart(null)
+                listState.scroll { scrollBy((if (forward) distance else -distance).toFloat()) }
+                eink.onScrollEnd(null)
+                eink.onPageTurn(null)
+            }
         }
     }
 
@@ -396,8 +473,14 @@ private fun ReaderContent(
         val target = TocNavigation.resolve(state.document, anchor) ?: return
         jumpedBlock = target
         tocOpen = false
+        // CR-20260930-02: choosing a chapter returns to the body, so the
+        // reading menu — and with it the title overlay — closes. Otherwise the
+        // landing heading would sit behind the title.
+        menuVisible = false
         scope.launch {
-            listState.scrollToItem(target)
+            // The title leaves with the menu, so only the reserved headroom still
+            // covers the top when this landing settles.
+            jumpToBlockRevealed(target, topInsetPx)
             viewModel.jumpToBlock(target)
             eink.onPageTurn(null)
         }
@@ -420,156 +503,182 @@ private fun ReaderContent(
     val bodyFontSize = (16 * fontScale).sp
     val bodyLineHeight = (22 * fontScale * lineMultiplier).sp
     val bodyFontFamily = fontFamilyFor(style.fontFamily)
+    // List headroom/tail reserve (UX-06, CR-20260930-01/03, CR-20261001-03).
+    // - The HEADROOM reserves the notices/search bar so they can never hide body
+    //   content (a first-block match cannot be scrolled clear at the document
+    //   head). The reading menu is deliberately NOT part of it, so toggling that
+    //   menu never moves the body.
+    // - The TAIL reserve must cover whatever the bottom chrome shows while the
+    //   last line stays reachable (CR-20260930-01), and it must NOT shrink when
+    //   the menu closes: at the tail a smaller reserve lowers the maximum scroll
+    //   offset, so the list clamps backwards and the body moves
+    //   (CR-20261001-03). It therefore starts from a floor that already covers
+    //   the footer plus a menu row — footer ≈ 29 dp (1 dp divider + one
+    //   bodySmall line + 8 dp padding) and the Material 3 TextButton row ≥ 40 dp
+    //   — and only ever GROWS to the measured chrome at larger system font
+    //   scales. Growing cannot move anything: the padding sits after the last
+    //   item, so item positions are unchanged and only the scroll range extends.
+    val chromeDensity = LocalDensity.current
+    val tailGapPx = with(chromeDensity) { 8.dp.roundToPx() }
+    val tailFloorPx = with(chromeDensity) { 96.dp.roundToPx() }
+    var tailReservePx by remember { mutableStateOf(tailFloorPx) }
+    LaunchedEffect(bottomChromePx, tailFloorPx) {
+        val needed = maxOf(tailFloorPx, bottomChromePx + tailGapPx)
+        if (needed > tailReservePx) tailReservePx = needed
+    }
+    val listContentPadding =
+        PaddingValues(
+            top = with(chromeDensity) { topInsetPx.toDp() },
+            bottom = with(chromeDensity) { tailReservePx.toDp() },
+        )
+    // Keep the running detector's callbacks current without cancelling a finger
+    // gesture when menu geometry or display policy changes. Page margins are
+    // part of the hit area; only child controls can claim their own touches.
+    val gestureAction by rememberUpdatedState(
+        newValue = { intent: TurnIntent ->
+            when {
+                !positionRestored || showTapZoneHint -> Unit
+                intent == TurnIntent.PREV_PAGE -> turnPage(false)
+                intent == TurnIntent.NEXT_PAGE -> turnPage(true)
+                intent == TurnIntent.TOGGLE_MENU -> menuVisible = !menuVisible
+                else -> Unit
+            }
+        },
+    )
+    val swipeThresholdPx = with(chromeDensity) { 48.dp.toPx() }
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = pageMarginDp, vertical = 16.dp),
+        modifier =
+            Modifier.fillMaxSize()
+                .testTag("reader.gestures")
+                .pointerInput(mode, swipeThresholdPx, docId) {
+                    detectReaderPageGestures(mode, swipeThresholdPx) { gestureAction(it) }
+                }
+                .padding(horizontal = pageMarginDp, vertical = 16.dp),
     ) {
         // UX-06 non-reflowing reader (ISS-018/ISS-019): the list is the only
-        // measured child of this Column — full height, fixed padding — and all
-        // chrome (document title, notices, search bar, reading menu, progress
-        // footer) is an overlay layer inside this Box. Toggling chrome changes
-        // no geometry the list is measured with, so it can never relayout the
-        // body or flash the E-Ink panel. The chrome is declared AFTER the list
-        // so it draws on top; only its own controls consume touches, and the
-        // measured overlay heights feed `turnPage` (visible-height accounting).
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        // measured child of this Column — full height — and all chrome
+        // (document title, notices, search bar, reading menu, progress footer)
+        // is an overlay layer inside this Box. The chrome is declared AFTER the
+        // list so it draws on top; only its own controls consume touches, and
+        // the measured overlay heights feed `turnPage` (visible-height
+        // accounting), the list's headroom/tail gap and the jump reveal.
+        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            val actionMenuMaxHeight = maxHeight * 0.4f
             LazyColumn(
                 state = listState,
-                // PAGE_TURN moves only via tap-zone turns and TOC jumps:
+                // PAGE_TURN moves only on completed taps/swipes and TOC jumps:
                 // finger drags never smear the E-Ink screen.
                 userScrollEnabled = mode == ReadingMode.CONTINUOUS_SCROLL,
-                // UX-06: the progress footer floats over the bottom of the list,
-                // so the content keeps a constant tail gap that no chrome
-                // visibility can change — the last line stays readable at the
-                // end without ever reflowing the body.
-                contentPadding = PaddingValues(bottom = 32.dp),
-                modifier =
-                    Modifier.fillMaxSize()
-                        .onSizeChanged { tapWidthPx = it.width }
-                        // Tap zones (REQ-0005 FR-3/FR-5). This detector only
-                        // sees gestures the content did NOT consume: links,
-                        // buttons, code-copy taps and horizontal scrollers
-                        // (T09/T10 children) consume first and never reach
-                        // here, and long presses route to onLongPress
-                        // (no-op) instead of onTap — so a long press never
-                        // turns a page. Turns only fire in PAGE_TURN mode;
-                        // in CONTINUOUS mode the side zones stay inert and
-                        // only the center menu toggle applies.
-                        // R3-05 DEF: `overlap` MUST be a restart key. The
-                        // handler captures `turnPage`, so without it a changed
-                        // overlap setting had no effect on taps until the mode
-                        // or list width changed (recomposition alone does not
-                        // restart an equal-keyed pointerInput).
-                        .pointerInput(mode, tapWidthPx, overlap) {
-                            detectTapGestures(
-                                onLongPress = { },
-                                onTap = { offset ->
-                                    val zone = TapZones.zoneFor(offset.x, tapWidthPx)
-                                    val intent =
-                                        GestureArbitration.decide(ContentGesture.PLAIN_TAP, zone)
-                                    when (intent) {
-                                        TurnIntent.PREV_PAGE ->
-                                            if (mode == ReadingMode.PAGE_TURN) turnPage(false)
-                                        TurnIntent.NEXT_PAGE ->
-                                            if (mode == ReadingMode.PAGE_TURN) turnPage(true)
-                                        TurnIntent.TOGGLE_MENU -> menuVisible = !menuVisible
-                                        TurnIntent.NONE -> Unit
-                                    }
-                                },
-                            )
-                        },
+                // Body inset: headroom under the notices/search bar, and a tail
+                // gap that covers the bottom chrome (CR-20260930-01/03). Both
+                // only change when the chrome itself changes.
+                contentPadding = listContentPadding,
+                modifier = Modifier.fillMaxSize(),
             ) {
                 itemsIndexed(state.document.blocks, key = { index, _ -> index }) { index, block ->
-                    // R2 DEF-003: the highlight is mapped against the string
-                    // THIS entry renders. Markdown paragraphs render through
-                    // Markwon (markers consumed), so the rendered text is the
-                    // mapping source; Compose entries render their stripped
-                    // text. Passing `block.text` (the source slice) is what
-                    // shifted spans off the matched word.
-                    val rendered =
-                        if (block.kind == BlockKind.CODE || block.kind == BlockKind.TABLE || block.literal) {
-                            null
-                        } else {
-                            // Same cache key as SpannedTextView's own remember,
-                            // so highlight mapping and rendering agree on ONE
-                            // instance per block. The SPANNED value is kept (it
-                            // carries Markwon's bold/italic/code spans — a
-                            // `.toString()` here silently dropped every
-                            // character style); measurement uses its text.
-                            remember(block.source, block.text) {
-                                viewModel.parser.renderer.renderSpanned(block)
-                            }
-                        }
-                    val highlight =
-                        searchHighlightFor(
-                            document = state.document,
-                            blockIndex = index,
-                            block = block,
-                            search = searchState,
-                            // TABLE entries lay their cells out in the block's
-                            // visible string, so that string is the coordinate
-                            // base for them too (R2 DEF-003: measuring tables
-                            // against the pipe slice drifted matches across
-                            // rows).
-                            displayed =
-                                rendered?.toString()?.trimEnd('\n')
-                                    ?: if (block.kind == BlockKind.TABLE) {
-                                        state.document.blockTexts.getOrElse(index) { "" }
-                                    } else {
-                                        null
-                                    },
-                        )
-                    when (block.kind) {
-                        BlockKind.CODE ->
-                            CodeBlockEntry(
-                                block = block,
-                                softWrap = style.codeSoftWrap,
-                                baseFontSize = bodyFontSize,
-                                jumped = index == jumpedBlock || highlight.blockFallback,
-                                highlight = highlight,
-                            )
-                        BlockKind.TABLE ->
-                            TableBlockEntry(
-                                block = block,
-                                baseFontSize = bodyFontSize,
-                                bodyFontFamily = bodyFontFamily,
-                                bodyLineHeight = bodyLineHeight,
-                                jumped = index == jumpedBlock || highlight.blockFallback,
-                                highlight = highlight,
-                                visibleText = state.document.blockTexts.getOrElse(index) { "" },
-                            )
-                        else ->
-                            ParagraphEntry(
-                                block = block,
-                                baseFontSize = bodyFontSize,
-                                bodyLineHeight = bodyLineHeight,
-                                bodyFontFamily = bodyFontFamily,
-                                jumped = index == jumpedBlock || highlight.blockFallback,
-                                highlight = highlight,
-                                rendered = rendered,
-                                // Production Markwon seam (R2-03 F01): the
-                                // session parser's renderer; spans are built
-                                // once per block emission (remembered below).
-                                spanned = { b -> viewModel.parser.renderer.renderSpanned(b) },
-                                onLinkTap = { link ->
-                                    viewModel.followLink(
-                                        link,
-                                        onOpenDocument = onOpenDocument,
-                                        onOpenExternal = onOpenExternal,
-                                    )
-                                },
-                            )
+                    DisposableEffect(docId, index) {
+                        onDispose { positionGeometry.remove(index) }
                     }
-                    // Local images render in place under their paragraph (T10
-                    // FR-6–FR-9): sampled loads for LOCAL, static placeholders
-                    // otherwise. Remote images never call the loader, so no
-                    // network request can originate here.
-                    for (image in block.images) {
-                        key(block.index, image.destination) {
-                            ImageEntry(
-                                image = image,
-                                documentId = state.document.documentId,
-                                imageLoader = imageLoader,
+                    Column(
+                        modifier =
+                            Modifier.fillMaxWidth().onGloballyPositioned {
+                                positionGeometry.blockTop(index, it.positionInRoot().y)
+                            },
+                    ) {
+                        // R2 DEF-003: the highlight is mapped against the string
+                        // THIS entry renders. Markdown paragraphs render through
+                        // Markwon (markers consumed), so the rendered text is the
+                        // mapping source; Compose entries render their stripped
+                        // text. Passing `block.text` (the source slice) is what
+                        // shifted spans off the matched word.
+                        val rendered =
+                            if (block.kind == BlockKind.CODE || block.kind == BlockKind.TABLE || block.literal) {
+                                null
+                            } else {
+                                // Same cache key as SpannedTextView's own remember,
+                                // so highlight mapping and rendering agree on ONE
+                                // instance per block. The SPANNED value is kept (it
+                                // carries Markwon's bold/italic/code spans — a
+                                // `.toString()` here silently dropped every
+                                // character style); measurement uses its text.
+                                remember(block.source, block.text) {
+                                    viewModel.parser.renderer.renderSpanned(block)
+                                }
+                            }
+                        val highlight =
+                            searchHighlightFor(
+                                document = state.document,
+                                blockIndex = index,
+                                block = block,
+                                search = searchState,
+                                // TABLE entries lay their cells out in the block's
+                                // visible string, so that string is the coordinate
+                                // base for them too (R2 DEF-003: measuring tables
+                                // against the pipe slice drifted matches across
+                                // rows).
+                                displayed =
+                                    rendered?.toString()?.trimEnd('\n')
+                                        ?: if (block.kind == BlockKind.TABLE) {
+                                            state.document.blockTexts.getOrElse(index) { "" }
+                                        } else {
+                                            null
+                                        },
                             )
+                        when (block.kind) {
+                            BlockKind.CODE ->
+                                CodeBlockEntry(
+                                    block = block,
+                                    softWrap = style.codeSoftWrap,
+                                    baseFontSize = bodyFontSize,
+                                    jumped = index == jumpedBlock || highlight.blockFallback,
+                                    highlight = highlight,
+                                    positionGeometry = positionGeometry,
+                                )
+                            BlockKind.TABLE ->
+                                TableBlockEntry(
+                                    block = block,
+                                    baseFontSize = bodyFontSize,
+                                    bodyFontFamily = bodyFontFamily,
+                                    bodyLineHeight = bodyLineHeight,
+                                    jumped = index == jumpedBlock || highlight.blockFallback,
+                                    highlight = highlight,
+                                    visibleText = state.document.blockTexts.getOrElse(index) { "" },
+                                )
+                            else ->
+                                ParagraphEntry(
+                                    block = block,
+                                    baseFontSize = bodyFontSize,
+                                    bodyLineHeight = bodyLineHeight,
+                                    bodyFontFamily = bodyFontFamily,
+                                    jumped = index == jumpedBlock || highlight.blockFallback,
+                                    highlight = highlight,
+                                    rendered = rendered,
+                                    // Production Markwon seam (R2-03 F01): the
+                                    // session parser's renderer; spans are built
+                                    // once per block emission (remembered below).
+                                    spanned = { b -> viewModel.parser.renderer.renderSpanned(b) },
+                                    onLinkTap = { link ->
+                                        viewModel.followLink(
+                                            link,
+                                            onOpenDocument = onOpenDocument,
+                                            onOpenExternal = onOpenExternal,
+                                        )
+                                    },
+                                    positionGeometry = positionGeometry,
+                                )
+                        }
+                        // Local images render in place under their paragraph (T10
+                        // FR-6–FR-9): sampled loads for LOCAL, static placeholders
+                        // otherwise. Remote images never call the loader, so no
+                        // network request can originate here.
+                        for (image in block.images) {
+                            key(block.index, image.destination) {
+                                ImageEntry(
+                                    image = image,
+                                    documentId = state.document.documentId,
+                                    imageLoader = imageLoader,
+                                )
+                            }
                         }
                     }
                 }
@@ -577,70 +686,82 @@ private fun ReaderContent(
 
             // -- overlay chrome: drawn over the list, never measured by it ----
 
-            // Top layer: the document title (only while the reading menu is
-            // open, so it never permanently consumes reading space — ISS-019),
-            // the transient notices, and the search bar. Opaque and static.
+            // Top layer: the transient notices and the search bar first — the
+            // body reserves their measured height as headroom, so they can never
+            // hide content (CR-20260930-03) — then the document title, which is
+            // drawn only while the reading menu is open (so it never permanently
+            // consumes reading space — ISS-019) and is deliberately NOT part of
+            // the headroom: the menu toggle must not move the body. Opaque and
+            // static.
             Column(
                 modifier =
                     Modifier.align(Alignment.TopCenter).fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surface)
-                        .onSizeChanged { topChromePx = it.height },
+                        .onSizeChanged { topChromePx = it.height }
+                        .testTag(ReaderChromeTags.TOP_OVERLAY),
             ) {
-                if (menuVisible) {
+                Column(
+                    modifier =
+                        Modifier.fillMaxWidth().onSizeChanged { topInsetPx = it.height },
+                ) {
+                    state.staleNotice?.let { notice ->
+                        Text(
+                            notice,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier =
+                                Modifier.fillMaxWidth().padding(horizontal = pageMarginDp, vertical = 4.dp),
+                        )
+                        TextButton(onClick = { viewModel.dismissStaleNotice() }) {
+                            Text(stringResource(R.string.dismiss))
+                        }
+                    }
+                    state.degradedNotice?.let { notice ->
+                        Text(
+                            notice,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier =
+                                Modifier.fillMaxWidth().padding(horizontal = pageMarginDp, vertical = 4.dp),
+                        )
+                    }
+                    // T10 one-shot link/image notice: static text + dismiss, no
+                    // animation (E-Ink safe). Never auto-navigates; position is
+                    // untouched.
+                    state.linkNotice?.let { notice ->
+                        Text(
+                            notice,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier =
+                                Modifier.fillMaxWidth().padding(horizontal = pageMarginDp, vertical = 4.dp),
+                        )
+                        TextButton(onClick = { viewModel.dismissLinkNotice() }) {
+                            Text(stringResource(R.string.dismiss))
+                        }
+                    }
+                    if (searchOpen) {
+                        SearchBar(
+                            search = searchState,
+                            input = searchInput,
+                            onInput = {
+                                searchInput = it
+                                viewModel.onSearchQuery(it)
+                            },
+                            onStep = { forward -> viewModel.stepSearch(forward) },
+                            onClose = {
+                                searchOpen = false
+                                searchInput = ""
+                                viewModel.closeSearch()
+                            },
+                        )
+                    }
+                }
+                // `menuVisible && !searchOpen`: searching closes the menu, and
+                // the title must never sit above the reserved headroom band.
+                if (menuVisible && !searchOpen) {
                     Text(
                         state.document.title,
                         style = MaterialTheme.typography.headlineSmall,
                         modifier =
                             Modifier.fillMaxWidth().padding(horizontal = pageMarginDp, vertical = 4.dp),
-                    )
-                }
-                state.staleNotice?.let { notice ->
-                    Text(
-                        notice,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier =
-                            Modifier.fillMaxWidth().padding(horizontal = pageMarginDp, vertical = 4.dp),
-                    )
-                    TextButton(onClick = { viewModel.dismissStaleNotice() }) {
-                        Text(stringResource(R.string.dismiss))
-                    }
-                }
-                state.degradedNotice?.let { notice ->
-                    Text(
-                        notice,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier =
-                            Modifier.fillMaxWidth().padding(horizontal = pageMarginDp, vertical = 4.dp),
-                    )
-                }
-                // T10 one-shot link/image notice: static text + dismiss, no
-                // animation (E-Ink safe). Never auto-navigates; position is
-                // untouched.
-                state.linkNotice?.let { notice ->
-                    Text(
-                        notice,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier =
-                            Modifier.fillMaxWidth().padding(horizontal = pageMarginDp, vertical = 4.dp),
-                    )
-                    TextButton(onClick = { viewModel.dismissLinkNotice() }) {
-                        Text(stringResource(R.string.dismiss))
-                    }
-                }
-                if (searchOpen) {
-                    SearchBar(
-                        search = searchState,
-                        input = searchInput,
-                        onInput = {
-                            searchInput = it
-                            viewModel.onSearchQuery(it)
-                        },
-                        onStep = { forward -> viewModel.stepSearch(forward) },
-                        onClose = {
-                            searchOpen = false
-                            searchInput = ""
-                            viewModel.closeSearch()
-                        },
                     )
                 }
             }
@@ -651,7 +772,8 @@ private fun ReaderContent(
                 modifier =
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surface)
-                        .onSizeChanged { bottomChromePx = it.height },
+                        .onSizeChanged { bottomChromePx = it.height }
+                        .testTag(ReaderChromeTags.BOTTOM_OVERLAY),
             ) {
                 Box(
                     modifier =
@@ -664,46 +786,37 @@ private fun ReaderContent(
                 val total = state.document.blocks.size
                 val first = listState.firstVisibleItemIndex
                 val percent = (PositionRestore.progressForBlock(first, total) * 100).toInt()
-                Text(
-                    stringResource(R.string.reader_progress, first + 1, total.coerceAtLeast(1), percent),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier =
-                        Modifier.fillMaxWidth().padding(horizontal = pageMarginDp, vertical = 4.dp),
+                ReaderNavigationBar(
+                    mode = mode,
+                    progress = stringResource(R.string.reader_progress, first + 1, total.coerceAtLeast(1), percent),
+                    menuVisible = menuVisible,
+                    canPrevious = positionRestored && listState.canScrollBackward,
+                    canNext = positionRestored && listState.canScrollForward,
+                    onPrevious = { turnPage(false) },
+                    onNext = { turnPage(true) },
+                    onMenu = { if (positionRestored && !showTapZoneHint) menuVisible = !menuVisible },
                 )
                 if (menuVisible) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { tocOpen = true }) {
-                            Text(stringResource(R.string.reader_toc))
-                        }
-                        TextButton(onClick = { searchOpen = true }) {
-                            Text(stringResource(R.string.reader_search))
-                        }
-                        // R2 DEF-005: explicit re-read (external edit, same
-                        // mtime/size overwrite). Instant, no animation (E-Ink
-                        // rule).
-                        TextButton(onClick = { viewModel.refresh(state.document.documentId) }) {
-                            Text(stringResource(R.string.reader_refresh))
-                        }
-                        if (settingsViewModel != null) {
-                            val other =
-                                if (mode == ReadingMode.PAGE_TURN) {
-                                    ReadingMode.CONTINUOUS_SCROLL
-                                } else {
-                                    ReadingMode.PAGE_TURN
-                                }
-                            TextButton(onClick = { settingsViewModel.setReadingMode(other.stored) }) {
-                                Text(
-                                    if (other == ReadingMode.PAGE_TURN) {
-                                        stringResource(R.string.reader_mode_page_turn)
-                                    } else {
-                                        stringResource(R.string.reader_mode_continuous)
-                                    },
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        TextButton(onClick = onBack) { Text(stringResource(R.string.go_back)) }
-                    }
+                    ReaderActionMenu(
+                        mode = mode,
+                        maxHeight = actionMenuMaxHeight,
+                        canChangeMode = settingsViewModel != null,
+                        onToc = { tocOpen = true },
+                        onSearch = {
+                            menuVisible = false
+                            searchOpen = true
+                        },
+                        onRefresh = { viewModel.refresh(state.document.documentId) },
+                        onMode = {
+                            val other = if (mode == ReadingMode.PAGE_TURN) ReadingMode.CONTINUOUS_SCROLL else ReadingMode.PAGE_TURN
+                            settingsViewModel?.setReadingMode(other.stored)
+                        },
+                        onHelp = {
+                            menuVisible = false
+                            hintRequested = true
+                        },
+                        onBack = onBack,
+                    )
                 }
             }
 
@@ -713,6 +826,7 @@ private fun ReaderContent(
                 TapZoneHintOverlay(
                     isPageTurn = mode == ReadingMode.PAGE_TURN,
                     onDismiss = {
+                        hintRequested = false
                         hintDismissed = true
                         settingsViewModel?.dismissTapZonesHint()
                     },
@@ -723,9 +837,26 @@ private fun ReaderContent(
 }
 
 /**
+ * Semantics tags for the reader's floating chrome layers (UX-06).
+ *
+ * The page regressions for the overlay findings
+ * (CR-20260930-01/02/03) have to compare a block's real bounds against the
+ * chrome's edges, and no text node exposes the overlay rectangles. Tagging the
+ * two layers keeps those measurements exact instead of inferring the chrome
+ * from paddings. Semantics only — no visual or behavioural effect.
+ */
+object ReaderChromeTags {
+    /** The top overlay layer (notices, search bar, menu title). */
+    const val TOP_OVERLAY = "reader-top-overlay"
+
+    /** The bottom overlay layer (progress footer and reading menu). */
+    const val BOTTOM_OVERLAY = "reader-bottom-overlay"
+}
+
+/**
  * First-run tap-zone onboarding (UX-06, ISS-020): a static, opaque
  * illustration of the three tap zones that the reader actually uses
- * ([TapZones], equal thirds of the list width) with one dismissal.
+ * ([TapZones], equal thirds of the reader width, including page margins) with one dismissal.
  *
  * It is shown at most once per install — the caller decides via the persisted
  * `tapZonesHintSeen` flag and hides it immediately on dismissal. The whole
@@ -828,9 +959,17 @@ private fun CodeBlockEntry(
     baseFontSize: androidx.compose.ui.unit.TextUnit,
     jumped: Boolean,
     highlight: io.leaflet.reader.BlockHighlight,
+    positionGeometry: BlockPositionGeometry? = null,
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-    var copied by remember(block.index) { mutableStateOf(false) }
+    var copied by remember(block) { mutableStateOf(false) }
+    var copyCount by remember(block) { mutableIntStateOf(0) }
+    LaunchedEffect(block, copyCount) {
+        if (copyCount > 0) {
+            delay(2000)
+            copied = false
+        }
+    }
     val label = block.languageLabel.ifEmpty { stringResource(R.string.reader_code_language_unknown) }
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -840,8 +979,16 @@ private fun CodeBlockEntry(
                 onClick = {
                     clipboard.setText(androidx.compose.ui.text.AnnotatedString(block.codeForCopy()))
                     copied = true
+                    copyCount++
                 },
-            ) { Text(stringResource(R.string.reader_code_copy), style = MaterialTheme.typography.labelSmall) }
+            ) {
+                // Reuse the action row so feedback never shifts the code or following blocks.
+                Text(
+                    stringResource(if (copied) R.string.reader_code_copied else R.string.reader_code_copy),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
+            }
         }
         Spacer(Modifier.height(4.dp))
         val bodyText = block.codeForCopy().ifBlank { " " }
@@ -853,16 +1000,20 @@ private fun CodeBlockEntry(
                     fontSize = baseFontSize,
                     fontWeight = if (jumped) FontWeight.Bold else null,
                     softWrap = softWrap,
-                    modifier = Modifier.padding(vertical = 4.dp),
+                    onTextLayout = { result ->
+                        val lines = result.blockTextLines()
+                        positionGeometry?.textLines(block.index) { lines }
+                    },
+                    modifier =
+                        Modifier.padding(vertical = 4.dp).onGloballyPositioned {
+                            positionGeometry?.textTop(block.index, it.positionInRoot().y)
+                        },
                 )
             }
         if (softWrap) {
             body()
         } else {
             Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) { body() }
-        }
-        if (copied) {
-            Text(stringResource(R.string.reader_code_copied), style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -905,7 +1056,24 @@ private fun TableBlockEntry(
         EntryBindings.tableCellSpans(blockVisible).takeIf { grid ->
             grid.size == rows.size && grid.indices.all { r -> grid[r].size == rows[r].size }
         }
-    if (rows.isEmpty()) {
+    // CR-20261001-01: validate the grid before it is measured as fixed
+    // constraints. Cells do not wrap (`softWrap = false`), so a single long cell
+    // asks for its full unwrapped line width — and Compose cannot represent an
+    // arbitrary dimension (262142 max; `Constraints.fixed(262143, …)` throws
+    // mid-layout). `chars × 2 em + cell padding` is a conservative upper bound on
+    // that line: CJK advances ~1 em, wide emoji/fallbacks up to ~1.6 em, and the
+    // bold/letter-spacing additions stay far inside the second em. A block above
+    // the bound renders as its own scrollable text instead, where every character
+    // stays reachable.
+    val tableDensity = LocalDensity.current
+    val glyphBudgetPx = with(tableDensity) { baseFontSize.toPx() }
+    val cellPaddingPx = with(tableDensity) { 16.dp.toPx() }
+    val widestCellChars = rows.maxOf { row -> row.maxOfOrNull { it.length } ?: 0 }
+    val representableGrid = isTableCellWidthRepresentable(widestCellChars, glyphBudgetPx, cellPaddingPx)
+    if (rows.isEmpty() || !representableGrid) {
+        // Bounded fallback, shared with an unparseable table: the block's own text
+        // in the normal horizontal-scroll container (`softWrap = false`), so no
+        // character of a pathological table is dropped or clipped.
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
             Text(
                 text = searchAnnotated(block.text.ifBlank { " " }, highlight),
@@ -919,41 +1087,21 @@ private fun TableBlockEntry(
         }
         return
     }
-    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-            rows.forEachIndexed { rowIndex, cells ->
-                Row {
-                    cells.forEachIndexed { cellIndex, cell ->
-                        // R2-06: cells keep their stripped text + cell-local
-                        // spans AND get search highlighting inside the cell
-                        // (previously only whole-block fallback applied — the
-                        // bar jumped to the table but nothing inside lit up,
-                        // REQ-0008 AC-3). Coordinates are cell-local: the
-                        // visible substring is re-located inside THIS cell's
-                        // stripped string, never borrowed from another cell.
-                        val stripped = InlineStyles.strip(cell)
-                        val cellStyles = InlineStyles.of(cell)
-                        val cellHighlight =
-                            cellSearchHighlight(stripped, highlight, blockVisible, cellSpans, rowIndex, cellIndex)
-                        Text(
-                            text = cellAnnotated(stripped, cellStyles, cellHighlight),
-                            fontFamily = bodyFontFamily,
-                            fontSize = baseFontSize,
-                            lineHeight = bodyLineHeight,
-                            fontWeight =
-                                if (jumped || (rowIndex == 0)) {
-                                    FontWeight.Bold
-                                } else {
-                                    null
-                                },
-                            softWrap = false,
-                            modifier =
-                                Modifier.padding(end = 16.dp)
-                                    .widthIn(min = 48.dp),
-                        )
-                    }
-                }
-            }
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
+        TableGrid(rowCount = rows.size, columnCount = rows.maxOf { it.size }) { rowIndex, cellIndex ->
+            val cell = rows[rowIndex].getOrElse(cellIndex) { "" }
+            val stripped = InlineStyles.strip(cell)
+            val cellStyles = InlineStyles.of(cell)
+            val cellHighlight =
+                cellSearchHighlight(stripped, highlight, blockVisible, cellSpans, rowIndex, cellIndex)
+            Text(
+                text = cellAnnotated(stripped, cellStyles, cellHighlight),
+                fontFamily = bodyFontFamily,
+                fontSize = baseFontSize,
+                lineHeight = bodyLineHeight,
+                fontWeight = if (jumped || rowIndex == 0) FontWeight.Bold else null,
+                softWrap = false,
+            )
         }
     }
 }
@@ -1176,6 +1324,7 @@ private fun ParagraphEntry(
     // markers NEVER show on device (F01).
     spanned: ((io.leaflet.markdown.RenderBlock) -> CharSequence)?,
     onLinkTap: (io.leaflet.markdown.BlockLink) -> Unit,
+    positionGeometry: BlockPositionGeometry? = null,
 ) {
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
         // R2 DEF-001: literal blocks (TXT chunks, PLAIN_FALLBACK degradation)
@@ -1190,6 +1339,7 @@ private fun ParagraphEntry(
                 baseFontSize = baseFontSize,
                 bodyLineHeight = bodyLineHeight,
                 bodyFontFamily = bodyFontFamily,
+                positionGeometry = positionGeometry,
             )
         } else {
             Text(
@@ -1199,6 +1349,14 @@ private fun ParagraphEntry(
                 lineHeight = bodyLineHeight,
                 fontFamily = bodyFontFamily,
                 fontWeight = if (jumped) FontWeight.Bold else null,
+                onTextLayout = { result ->
+                    val lines = result.blockTextLines()
+                    positionGeometry?.textLines(block.index) { lines }
+                },
+                modifier =
+                    Modifier.onGloballyPositioned {
+                        positionGeometry?.textTop(block.index, it.positionInRoot().y)
+                    },
             )
         }
         for (link in block.links) {
@@ -1239,6 +1397,7 @@ private fun SpannedTextView(
     baseFontSize: androidx.compose.ui.unit.TextUnit,
     bodyLineHeight: androidx.compose.ui.unit.TextUnit,
     bodyFontFamily: androidx.compose.ui.text.font.FontFamily?,
+    positionGeometry: BlockPositionGeometry? = null,
 ) {
     val base = remember(block.source, block.text) { rendered }
     val withMarks =
@@ -1256,10 +1415,35 @@ private fun SpannedTextView(
             // DEF-002: style first, then text — both paths run on every bind.
             applyTypography(view, baseFontSize, bodyLineHeight, typeface)
             view.text = withMarks
+            var cachedLayout: android.text.Layout? = null
+            var cachedLines: BlockTextLines? = null
+            positionGeometry?.textLines(block.index) {
+                val layout = view.layout
+                if (layout != null && layout !== cachedLayout) {
+                    cachedLayout = layout
+                    cachedLines =
+                        BlockTextLines(
+                            view.text.length,
+                            IntArray(layout.lineCount) { layout.getLineStart(it) },
+                            FloatArray(layout.lineCount) { layout.getLineTop(it).toFloat() + view.totalPaddingTop },
+                        )
+                }
+                cachedLines
+            }
         },
-        modifier = Modifier.padding(vertical = 4.dp),
+        modifier =
+            Modifier.padding(vertical = 4.dp).onGloballyPositioned {
+                positionGeometry?.textTop(block.index, it.positionInRoot().y)
+            },
     )
 }
+
+private fun androidx.compose.ui.text.TextLayoutResult.blockTextLines(): BlockTextLines =
+    BlockTextLines(
+        layoutInput.text.length,
+        IntArray(lineCount) { getLineStart(it) },
+        FloatArray(lineCount) { getLineTop(it) },
+    )
 
 /**
  * One place that applies the T09 typography to an existing [android.widget.TextView]
@@ -1370,6 +1554,7 @@ private fun ImageEntry(
     imageLoader: ImageLoader?,
 ) {
     val caption = imageCaption(image)
+    val density = LocalDensity.current
     // Static placeholder frame (E-Ink safe): gray box + alt + size text.
     if (image.kind != io.leaflet.markdown.ImageKind.LOCAL || imageLoader == null) {
         StaticImagePlaceholder(caption = caption)
@@ -1398,6 +1583,7 @@ private fun ImageEntry(
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
                 .onSizeChanged { widthPx = it.width },
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         when (val result = loaded) {
             // R2-03: a decoded bitmap actually draws (Image composable),
@@ -1406,19 +1592,20 @@ private fun ImageEntry(
             // which is why local images "loaded" but never displayed (F04).
             is DeviceImage.Ready -> {
                 val bitmap = result.bitmap
-                val aspect =
-                    if (result.heightPx > 0) {
-                        result.widthPx.toFloat() / result.heightPx.toFloat()
-                    } else {
-                        1f
-                    }
+                val dimensions =
+                    boundedImageDimensions(
+                        bitmap.width,
+                        bitmap.height,
+                        widthPx.coerceAtLeast(1),
+                        with(density) { 320.dp.roundToPx() },
+                    )
                 androidx.compose.foundation.Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = image.alt.ifBlank { image.destination },
                     modifier =
-                        Modifier.fillMaxWidth()
-                            .heightIn(max = 320.dp)
-                            .aspectRatio(aspect.coerceIn(0.2f, 4f), matchHeightConstraintsFirst = true),
+                        with(density) {
+                            Modifier.size(dimensions.widthPx.toDp(), dimensions.heightPx.toDp())
+                        },
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 )
                 Text(

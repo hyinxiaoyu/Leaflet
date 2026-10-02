@@ -124,6 +124,8 @@ The 10 tasks are organized into three phases. Tasks within Phase 1 have no cross
   - All file rows measure at least 48 dp in clickable height.
 - **Stop Condition**: Tested against multi-level nested folders.
 
+**Status (2026-10-01): DELIVERED — SOFTWARE VERIFIED, DEVICE PENDING.** The browsing slice is implemented as NB-00–NB-05: a validated breadcrumb, a reserved scan-status region that no longer moves the file list, and ≥48 dp rows with folder/document type cues. `test --rerun-tasks` (820 cases) and `lint` pass and both debug flavors build; the page regressions are NOT_RUN without a device, and UX-01/UX-02/UX-04 stay undelivered with a documented dependency narrowing. See [library-navigation-ux-delivery.md](library-navigation-ux-delivery.md).
+
 ---
 
 ### UX-06 — Non-Reflowing Reader Overlay Architecture
@@ -153,23 +155,25 @@ See [ux-06-delivery.md](ux-06-delivery.md).
 
 ### UX-07 — Synchronized Table Layout & Bounded Image Scaling
 
-- **Target**: `ReaderScreen.kt` (`TableBlockEntry`, `ImageEntry`), `EntryBindings.kt`.
+- **Target**: `ReaderScreen.kt` (`TableBlockEntry`, `ImageEntry`, `CodeBlockEntry`), `TableGrid.kt`, `ImageDimensions.kt`.
 - **Problem**: Table rows calculate column widths independently, resulting in misaligned columns and smashed header text (ISS-023). Small images (e.g., 16×16 px) are stretched across the full screen width to 1080 px (ISS-024). Code block copy feedback text never disappears (ISS-025).
 - **Change**:
   1. In `TableBlockEntry`:
      - Pre-calculate maximum column widths across all rows in the table.
      - Render cells in a synchronized grid layout where every cell in column $i$ has identical width $W_i$.
-     - Add 1 dp solid border dividers between cells and a bold dividing line below the header row.
+     - Add 1 dp solid border dividers between cells and a 2 dp dividing line below the header row.
   2. In `ImageEntry`:
-     - Remove unconditional `fillMaxWidth()`.
-     - Display images at natural scale, capped at maximum viewport width and 320 dp height: `Modifier.wrapContentWidth().heightIn(max = 320.dp)`. Small icons remain at their intended size.
+     - Remove unconditional `fillMaxWidth()` from the bitmap.
+     - Keep the full-width decode container, but give the bitmap explicit density-correct dimensions. Center images without upscaling, and proportionally cap them at viewport width and 320 dp height. Preserve tall/panoramic aspect ratios.
   3. In `CodeBlockEntry`:
-     - After setting `copied = true`, launch a coroutine to reset `copied = false` after 2000 ms.
+     - Show feedback inside the existing copy action and reset `copied = false` 2000 ms after the latest tap. Repeated taps restart the timer; feedback never inserts a row or moves the document.
 - **Acceptance Criteria**:
   - Markdown table columns align vertically across all rows, with clear dividing lines between cells.
   - Small images (e.g., 16×16 px) render at their natural size without being stretched across the viewport.
-  - "Code copied" indicator automatically resets after 2 seconds.
+  - "Code copied" indicator automatically resets 2 seconds after the latest tap, without shifting code or following blocks.
 - **Stop Condition**: Tested with `tables.md` and `relative-images.md` sample fixtures.
+
+**Status (2026-09-30): IMPLEMENTED — SOFTWARE VERIFIED, HARDWARE PENDING.** Shared styled column widths and grid dividers, density-correct bounded centered images, and two-second copy feedback are delivered. All JVM/static gates and both debug builds pass; both flavors pass 57 page cases, with 9 follow-up cases per flavor after the concurrent TOC adjustment. The six new page cases failed against the old renderer. See [ux-07-delivery.md](ux-07-delivery.md).
 
 ---
 

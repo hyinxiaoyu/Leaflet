@@ -117,6 +117,30 @@ Removal deletes the local Library row, its indexed Document rows, its indexed di
 
 Long-press inside the browse tree does not remove a subdirectory. That gesture is outside this addition.
 
+## Code review round-2 follow-up (2026-10-01)
+
+The [round-2 review](code-review-2026-10-01-round-2.md) reproduced a scan-safety defect against FR-9
+and the "absence evidence" rule.
+
+- **CR-20261001-05 — incomplete directory metadata authorized a cleanup.** A provider row that still
+  declared the directory MIME type but had lost its display name was rebuilt as a "file" with an
+  empty identity, so the next scan treated the folder as vanished and deleted its previously indexed
+  documents (source files untouched; the auxiliary position rows cascade with them). Two rules now
+  close it: row classification reads the columns that ARE present (`classifyTreeRow` in
+  `TreeLister` — the MIME type decides the directory bit even when the name or id is missing), and
+  `LibraryScanner` treats ANY row it could not fully classify as insufficient absence evidence for
+  the walk, so cleanup is skipped while the run still succeeds and reports the row as an entry error.
+  A row that states no MIME type at all is marked `TreeEntry.typeUnknown` and is neither indexed as a
+  document nor accepted as absence evidence even when its id and display name are intact (the
+  independent acceptance's missing-MIME-only boundary). The parser's row → entry projection
+  (`readTreeEntry`) derives the emitted entry from the classifier, so the marker reaches the scanner
+  through the production cursor path instead of being rebuilt field by field.
+  Regressions: `TreeRowClassificationTest` (nameless directory, identity-less directory,
+  unclassifiable row, unknown-MIME classification, and the scan scenarios — including
+  missing-MIME-only — asserting `deleted = 0` with the old document kept) and the existing
+  `LibraryScannerTest` suite. Real-provider/cursor and instrumented verification remain
+  NOT_RUN.
+
 ## Open Questions
 
 - **Enumeration cap:** the 500 indexed-document cap was removed. Scans index every supported document they find. A 5,000-entry visit guard remains (directories, files, and malformed rows). Exceeding it fails explicitly and retains the old index (`LibraryScanner` tests). The guard value is unverified against a device baseline.

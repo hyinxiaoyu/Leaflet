@@ -44,6 +44,8 @@ sealed interface ReaderUiState {
         val staleNotice: String?,
         /** One-shot link/image notice (T10: missing/escaped/unsupported — static text, E-Ink safe). */
         val linkNotice: String? = null,
+        /** Character address within the displayed block; pixels are layout-only. */
+        val restoreBlockOffset: Int = 0,
     ) : ReaderUiState
 
     data class Failed(
@@ -172,6 +174,9 @@ class ReaderViewModel(
     private var currentDescriptorId: DocumentId? = null
     private var currentStored: StoredPosition? = null
     private var lastVisibleBlock: Int = 0
+    private var lastVisibleBlockOffset: Int = 0
+    private var linkJob: Job? = null
+    private var linkGeneration = 0L
 
     /** In-document search state (T11, REQ-0008): per-document, not persisted. */
     private val _search = MutableStateFlow(SearchUiState())
@@ -294,6 +299,7 @@ class ReaderViewModel(
                 currentDescriptor = null
                 currentDescriptorId = null
                 lastVisibleBlock = 0
+                lastVisibleBlockOffset = 0
                 open(documentId)
             }
     }
@@ -310,6 +316,7 @@ class ReaderViewModel(
         minGeneration: Long,
     ) {
         openJob?.cancel()
+        cancelPendingLinks(preserveFragmentFor = documentId)
         cancelSearchLocked()
         throttler.reset()
         // R2 DEF-012: switching documents must not leave the PREVIOUS
@@ -325,6 +332,7 @@ class ReaderViewModel(
             currentDescriptorId = null
             currentStored = null
             lastVisibleBlock = 0
+            lastVisibleBlockOffset = 0
         }
         currentId = documentId
         _search.value = SearchUiState(generation = searchGeneration)
@@ -377,29 +385,194 @@ class ReaderViewModel(
     }
 
     /**
+     * One queued position write, captured when the address was requested
+     * (R2 DEF-012, deferred-save subcase).
+     *
+     * After a document switch the mutable `lastVisibleBlock`/`currentId` describe
+     * the NEW document, so a queued save must carry its own document, parsed
+     * document, block and load generation — and must not touch the current
+     * document's caches or throttle state when it finally runs. Reading the
+     * mutable fields inside the IO coroutine is what let A's queued save write
+     * block 0 (the new document's address) over A's real position.
+     */
+    private data class SaveSnapshot(
+        val documentId: DocumentId,
+        val document: ParsedDocument,
+        val blockIndex: Int,
+        val generation: Long,
+        val blockOffset: Int,
+    )
+
+    /** True while [snapshot] still describes the currently open document. */
+    private fun isCurrent(snapshot: SaveSnapshot): Boolean =
+        currentId == snapshot.documentId && session.currentGeneration() == snapshot.generation
+
+    /**
+     * Save ordering bookkeeping (CR-20261001-04, including the independent
+     * acceptance boundary).
+     *
+     * Immutable snapshots fixed *identity*, but each write still ran in its own
+     * coroutine, so an older write could COMPLETE after a newer jump and its exit
+     * flush and leave the older address stored. The lock protects only this small
+     * bookkeeping — never the store write — so a newer address is never blocked
+     * behind a slow older one; ordering is repaired on completion instead:
+     *
+     * - the sequence is allocated by [nextSaveSequence], which runs on the
+     *   CALLER's thread before any dispatch: sequence order is invocation order,
+     *   never the order in which the IO workers happen to start. Allocating it
+     *   inside the launched coroutine recorded IO start order, so an earlier
+     *   invocation whose worker started last was promoted to "newest" and the
+     *   repair never ran for the truly newest request;
+     * - `newestRequestByDocument` holds the highest requested (sequence,
+     *   snapshot) PER DOCUMENT, so a document switch between two overlapping
+     *   writes cannot redirect the repair at the other document's request: a
+     *   superseded write to A can only ever be repaired with A's newest address;
+     * - when a write completes while a NEWER request for the same document exists
+     *   and that newer write has already landed, the older completion may have
+     *   just overwritten it, so the newest accepted address is written again;
+     * - only the newest request for a document may publish the position caches.
+     *
+     * `synchronized` (not a coroutine `Mutex`) because [queueSave] is not a
+     * suspend function: it must order requests synchronously at call time.
+     */
+    private val saveBookkeeping = Any()
+    private var saveRequestSeq = 0L
+    private val newestRequestByDocument = LinkedHashMap<String, Pair<Long, SaveSnapshot>>()
+    private val newestCompletedByDocument = HashMap<String, Long>()
+    private val pendingSavesByDocument = HashMap<String, Int>()
+
+    /** Active writes own their repair target until their final completion. */
+    private fun trimIdleSaveDocuments() {
+        while (newestRequestByDocument.size > MAX_TRACKED_SAVE_DOCUMENTS) {
+            val idle = newestRequestByDocument.keys.firstOrNull { it !in pendingSavesByDocument } ?: break
+            newestRequestByDocument.remove(idle)
+            newestCompletedByDocument.remove(idle)
+        }
+    }
+
+    /** Allocates the request sequence, in invocation order, before dispatch. */
+    private fun nextSaveSequence(snapshot: SaveSnapshot): Long =
+        synchronized(saveBookkeeping) {
+            saveRequestSeq += 1
+            val key = snapshot.documentId.value
+            pendingSavesByDocument[key] = (pendingSavesByDocument[key] ?: 0) + 1
+            // Re-inserting moves the document to the newest position, so the
+            // idle cache evicts the least recently requested idle document.
+            newestRequestByDocument.remove(key)
+            newestRequestByDocument[key] = saveRequestSeq to snapshot
+            trimIdleSaveDocuments()
+            saveRequestSeq
+        }
+
+    /** True while [seq] is still the newest requested save for [snapshot]'s document. */
+    private fun isNewestRequest(
+        seq: Long,
+        snapshot: SaveSnapshot,
+    ): Boolean = synchronized(saveBookkeeping) { newestRequestByDocument[snapshot.documentId.value]?.first == seq }
+
+    /**
+     * The newest request for the SAME document that must be written again after
+     * [seq] completed, or null when this completion is already that document's
+     * newest. Repair applies only when the newer write already landed: otherwise
+     * it lands later and wins by itself.
+     */
+    private fun repairTargetFor(
+        seq: Long,
+        snapshot: SaveSnapshot,
+    ): Pair<Long, SaveSnapshot>? =
+        synchronized(saveBookkeeping) {
+            val key = snapshot.documentId.value
+            val completed = newestCompletedByDocument[key] ?: 0L
+            if (seq >= completed) newestCompletedByDocument[key] = seq
+            val newest = newestRequestByDocument[key]
+            if (newest != null && newest.first > seq && (newestCompletedByDocument[key] ?: 0L) >= newest.first) {
+                newest
+            } else {
+                null
+            }
+        }
+
+    /**
+     * Queues one position write for a snapshot captured by the caller. The IO
+     * work reads only the snapshot, and its completion bookkeeping runs only
+     * while that same snapshot is still the open document and is still newest, so
+     * a save queued for A can never record B's block, B's throttle state, or an
+     * older address that a newer request already superseded.
+     *
+     * Completion coalesces to the newest address: after writing [snapshot] this
+     * coroutine re-checks the document's newest COMPLETED request and writes it
+     * too, until it has written that document's newest one. A compensating write
+     * is itself an ordinary store write and can be held while even newer requests
+     * complete, so a single one-shot repair is not enough (independent acceptance,
+     * third round) — the loop is what makes the last write the newest address.
+     */
+    private fun queueSave(
+        snapshot: SaveSnapshot,
+        onSaved: () -> Unit = {},
+    ): Job {
+        val seq = nextSaveSequence(snapshot)
+        val job =
+            viewModelScope.launch(ioDispatcher) {
+                try {
+                    var writtenSeq = seq
+                    var written = snapshot
+                    while (true) {
+                        persist(written, requestSeq = writtenSeq)
+                        val newest = repairTargetFor(writtenSeq, written) ?: break
+                        writtenSeq = newest.first
+                        written = newest.second
+                    }
+                    // The throttle belongs to the newest request; a coroutine whose
+                    // request was superseded leaves that marking to the newer one.
+                    if (isCurrent(snapshot) && isNewestRequest(seq, snapshot)) onSaved()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Next scroll tick or the exit flush retries; never show an error.
+                }
+            }
+        // Completion also runs when cancellation precedes the coroutine's first dispatch.
+        job.invokeOnCompletion {
+            synchronized(saveBookkeeping) {
+                val key = snapshot.documentId.value
+                val remaining = (pendingSavesByDocument[key] ?: 1) - 1
+                if (remaining == 0) pendingSavesByDocument.remove(key) else pendingSavesByDocument[key] = remaining
+                trimIdleSaveDocuments()
+            }
+        }
+        return job
+    }
+
+    /**
      * Scroll observer: called by the screen with the first visible block.
      * Throttled (≥ 2s + real movement); the restore echo is seeded without
      * a write. Parse failures here never surface — the next flush retries.
      */
     fun onVisibleBlock(blockIndex: Int) {
+        onVisiblePosition(blockIndex, if (blockIndex == lastVisibleBlock) lastVisibleBlockOffset else 0)
+    }
+
+    /** The UI projects its measured line/viewport into a durable character address. */
+    fun onVisiblePosition(
+        blockIndex: Int,
+        blockOffset: Int,
+        documentId: DocumentId? = currentId,
+    ) {
         val id = currentId ?: return
+        if (documentId != id) return
         val doc = currentDoc ?: return
         if (_ui.value !is ReaderUiState.Content) return
-        lastVisibleBlock = blockIndex.coerceIn(0, (doc.blocks.size - 1).coerceAtLeast(0))
-        if (!throttler.shouldSave(lastVisibleBlock, 0)) return
+        val block = blockIndex.coerceIn(0, (doc.blocks.size - 1).coerceAtLeast(0))
+        val offset = blockOffset.coerceAtLeast(0)
+        lastVisibleBlock = block
+        lastVisibleBlockOffset = offset
+        if (!throttler.shouldSave(block, offset)) return
         // Keep the restore address in step with the position we are about to
         // save (only on a real save — not on every scroll tick): a remount then
         // restores the latest address instead of the open-time one.
-        syncRestoreAddress(id, lastVisibleBlock)
-        viewModelScope.launch(ioDispatcher) {
-            try {
-                persist(id, doc, lastVisibleBlock)
-                throttler.markSaved(lastVisibleBlock, 0)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // Next scroll tick or the exit flush retries; never show an error.
-            }
+        syncRestoreAddress(id, block, offset)
+        queueSave(SaveSnapshot(id, doc, block, session.currentGeneration(), offset)) {
+            throttler.markSaved(block, offset)
         }
     }
 
@@ -413,18 +586,14 @@ class ReaderViewModel(
         val id = currentId ?: return
         val doc = currentDoc ?: return
         if (_ui.value !is ReaderUiState.Content) return
-        lastVisibleBlock = blockIndex.coerceIn(0, (doc.blocks.size - 1).coerceAtLeast(0))
-        throttler.markSaved(lastVisibleBlock, 0)
-        syncRestoreAddress(id, lastVisibleBlock)
-        viewModelScope.launch(ioDispatcher) {
-            try {
-                persist(id, doc, lastVisibleBlock)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // Best effort: the next scroll tick or exit flush retries.
-            }
-        }
+        val block = blockIndex.coerceIn(0, (doc.blocks.size - 1).coerceAtLeast(0))
+        lastVisibleBlock = block
+        lastVisibleBlockOffset = 0
+        // Recording the throttle marker here is a request-time decision for THIS
+        // document; a document switch resets the throttler anyway.
+        throttler.markSaved(block, 0)
+        syncRestoreAddress(id, block, 0)
+        queueSave(SaveSnapshot(id, doc, block, session.currentGeneration(), 0))
     }
 
     /**
@@ -443,17 +612,19 @@ class ReaderViewModel(
         val doc = content.document
         if (doc.documentId != id) return viewModelScope.launch {}
         val block = lastVisibleBlock
-        return viewModelScope.launch(ioDispatcher) {
-            try {
-                persist(id, doc, block)
-                throttler.markSaved(block, 0)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // Best effort: a failed flush must not crash exit.
-            }
+        val offset = lastVisibleBlockOffset
+        return queueSave(SaveSnapshot(id, doc, block, session.currentGeneration(), offset)) {
+            throttler.markSaved(block, offset)
         }
     }
+
+    /** Main-thread UI snapshot, including movement still inside the save interval. */
+    fun readingLocationFor(documentId: DocumentId): io.leaflet.markdown.BlockLocation? =
+        if (currentId == documentId && currentDoc?.documentId == documentId && _ui.value is ReaderUiState.Content) {
+            io.leaflet.markdown.BlockLocation(lastVisibleBlock, lastVisibleBlockOffset)
+        } else {
+            null
+        }
 
     /**
      * Mirrors a saved address into the visible [ReaderUiState.Content] so a
@@ -464,10 +635,13 @@ class ReaderViewModel(
     private fun syncRestoreAddress(
         documentId: DocumentId,
         blockIndex: Int,
+        blockOffset: Int,
     ) {
         _ui.update { state ->
-            if (state is ReaderUiState.Content && state.document.documentId == documentId && state.restoreBlock != blockIndex) {
-                state.copy(restoreBlock = blockIndex)
+            if (state is ReaderUiState.Content && state.document.documentId == documentId &&
+                (state.restoreBlock != blockIndex || state.restoreBlockOffset != blockOffset)
+            ) {
+                state.copy(restoreBlock = blockIndex, restoreBlockOffset = blockOffset)
             } else {
                 state
             }
@@ -510,7 +684,10 @@ class ReaderViewModel(
         onOpenDocument: (DocumentId) -> Unit,
         onOpenExternal: (String) -> Unit,
     ) {
+        if (link.kind == io.leaflet.markdown.DocLinkKind.EMPTY) return
         val doc = currentDoc ?: return notifyLink(T10_NOTICES[LinkNoticeKind.UNREACHABLE]!!)
+        cancelPendingLinks()
+        val ticket = linkGeneration
         when (link.kind) {
             io.leaflet.markdown.DocLinkKind.EMPTY -> return
             io.leaflet.markdown.DocLinkKind.SAME_DOC_ANCHOR -> {
@@ -523,29 +700,37 @@ class ReaderViewModel(
             }
             io.leaflet.markdown.DocLinkKind.LIBRARY_DOC -> {
                 val id = currentId ?: return notifyLink(T10_NOTICES[LinkNoticeKind.UNREACHABLE]!!)
+                val generation = session.currentGeneration()
                 openJob?.cancel()
                 // DEF-008: state writes on Main; resolution on IO.
-                viewModelScope.launch {
-                    try {
-                        val target = withContext(ioDispatcher) { store.resolveRelative(id, link.destination) }
-                        val targetId = target?.documentId
-                        if (targetId == null) {
-                            notifyLink(T10_NOTICES[LinkNoticeKind.UNREACHABLE]!!)
-                            return@launch
-                        }
-                        val fragment = link.fragment
-                        if (fragment.isNullOrEmpty()) {
+                linkJob =
+                    viewModelScope.launch {
+                        try {
+                            val target = withContext(ioDispatcher) { store.resolveRelative(id, link.destination) }
+                            if (!ownsLink(id, generation, ticket)) return@launch
+                            val targetId = target?.documentId
+                            if (targetId == null) {
+                                notifyLink(T10_NOTICES[LinkNoticeKind.UNREACHABLE]!!)
+                                return@launch
+                            }
+                            val fragment = link.fragment
+                            if (fragment.isNullOrEmpty()) {
+                                onOpenDocument(targetId)
+                                return@launch
+                            }
+                            pendingFragment = PendingFragment(targetId, fragment)
                             onOpenDocument(targetId)
-                            return@launch
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            if (ownsLink(id, generation, ticket)) {
+                                pendingFragment = null
+                                notifyLink(T10_NOTICES[LinkNoticeKind.UNREACHABLE]!!)
+                            }
+                        } finally {
+                            if (ticket == linkGeneration) linkJob = null
                         }
-                        pendingFragment = fragment
-                        onOpenDocument(targetId)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: Exception) {
-                        notifyLink(T10_NOTICES[LinkNoticeKind.UNREACHABLE]!!)
                     }
-                }
             }
             io.leaflet.markdown.DocLinkKind.UNSUPPORTED_MEDIA -> notifyLink(T10_NOTICES[LinkNoticeKind.UNSUPPORTED_MEDIA]!!)
             io.leaflet.markdown.DocLinkKind.EXTERNAL -> {
@@ -564,12 +749,41 @@ class ReaderViewModel(
      * Fragment carried across a library-document jump (`other.md#anchor`):
      * consumed once by the destination screen (see [takePendingFragment]).
      */
-    private var pendingFragment: String? = null
+    private data class PendingFragment(val documentId: DocumentId, val fragment: String)
 
-    fun takePendingFragment(): String? {
-        val pending = pendingFragment
+    private var pendingFragment: PendingFragment? = null
+
+    private fun ownsLink(
+        documentId: DocumentId,
+        generation: Long,
+        ticket: Long,
+    ): Boolean =
+        currentId == documentId && session.currentGeneration() == generation &&
+            linkGeneration == ticket && _ui.value is ReaderUiState.Content
+
+    private fun cancelPendingLinks(preserveFragmentFor: DocumentId? = null) {
+        linkGeneration += 1
+        linkJob?.cancel()
+        linkJob = null
+        if (pendingFragment?.documentId != preserveFragmentFor) pendingFragment = null
+        pendingJump = null
+    }
+
+    /** A popped route must not navigate later through its retained ViewModel. */
+    fun onReaderExit(documentId: DocumentId) {
+        if (currentId == documentId) {
+            // The source can dispose before the destination's open effect runs.
+            // Keep an already handed-off fragment for that destination only.
+            val destination = pendingFragment?.documentId?.takeIf { it != documentId }
+            cancelPendingLinks(preserveFragmentFor = destination)
+        }
+    }
+
+    fun takePendingFragment(documentId: DocumentId? = currentId): String? {
+        val pending = pendingFragment ?: return null
+        if (pending.documentId != documentId || currentId != documentId) return null
         pendingFragment = null
-        return pending
+        return pending.fragment
     }
 
     /** Pending same-doc jump set by [followLink]; consumed once by the screen. */
@@ -736,6 +950,7 @@ class ReaderViewModel(
                 locateAnchor = { anchor -> locateAnchorInDoc(doc, anchor) },
             )
         lastVisibleBlock = restore.blockIndex
+        lastVisibleBlockOffset = restore.blockOffset
         // Seed the throttle so the restore scroll itself never writes.
         throttler.markSaved(restore.blockIndex, restore.blockOffset)
         val degradedNotice =
@@ -748,6 +963,7 @@ class ReaderViewModel(
             ReaderUiState.Content(
                 document = doc,
                 restoreBlock = restore.blockIndex,
+                restoreBlockOffset = restore.blockOffset,
                 degradedNotice = degradedNotice,
                 staleNotice =
                     if (restore.showStaleNotice) {
@@ -777,24 +993,20 @@ class ReaderViewModel(
     }
 
     private suspend fun persist(
-        documentId: DocumentId,
-        doc: ParsedDocument,
-        blockIndex: Int,
+        snapshot: SaveSnapshot,
+        requestSeq: Long,
     ) {
+        val documentId = snapshot.documentId
+        val doc = snapshot.document
+        val blockIndex = snapshot.blockIndex
         // R2 DEF-012: only trust the cached descriptor when it describes THIS
-        // document; otherwise fetch it. Re-cache only while this document is
-        // still the open one, so a delayed save for a document the user left
-        // cannot poison the descriptor of the current one.
+        // document; otherwise fetch it.
         val descriptor =
             if (currentDescriptorId == documentId) {
                 currentDescriptor
             } else {
                 store.describe(documentId)
             }
-        if (documentId == currentId) {
-            currentDescriptor = descriptor
-            currentDescriptorId = documentId
-        }
         val fp = descriptor?.fingerprint
         val (mtime, size) = splitFingerprint(fp)
         val position =
@@ -802,12 +1014,21 @@ class ReaderViewModel(
                 documentId = documentId,
                 version = PositionRestore.CONTRACT_VERSION,
                 blockIndex = blockIndex.coerceIn(0, (doc.blocks.size - 1).coerceAtLeast(0)),
-                blockOffset = 0,
+                blockOffset = snapshot.blockOffset,
                 progress = PositionRestore.progressForBlock(blockIndex, doc.blocks.size),
                 anchor = anchorForBlock(doc, blockIndex),
             )
         store.savePosition(position, mtime, size)
-        currentStored = StoredPosition(position, fp)
+        // Re-cache only while this snapshot still describes the open document AND
+        // is still the newest request: a delayed save — or one a newer request has
+        // already superseded — must not poison the current document's descriptor
+        // or stored-position cache (the previous code assigned `currentStored`
+        // unconditionally).
+        if (isCurrent(snapshot) && isNewestRequest(requestSeq, snapshot)) {
+            currentDescriptor = descriptor
+            currentDescriptorId = documentId
+            currentStored = StoredPosition(position, fp)
+        }
     }
 
     private fun splitFingerprint(fp: String?): Pair<Long, Long> {
@@ -822,6 +1043,14 @@ class ReaderViewModel(
 
     private companion object {
         const val OPEN_TIMEOUT_MS = 30_000L
+
+        /**
+         * How many documents' newest save requests stay tracked for the repair
+         * pass. Bounded because the tracking keys are document ids: enough to
+         * cover the documents a reader moves between while writes are in flight,
+         * small enough that a long session cannot grow without limit.
+         */
+        const val MAX_TRACKED_SAVE_DOCUMENTS = 8
     }
 }
 

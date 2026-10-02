@@ -1,8 +1,6 @@
 package io.leaflet.reader.ui
 
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.leaflet.markdown.BlockImage
@@ -86,12 +84,7 @@ class ReaderImageTest {
         }
         // Local Ready bitmap draws (production Image composable).
         compose.waitUntil(timeoutMillis = 15_000) {
-            try {
-                compose.onNodeWithText("Image Page Proof").assertIsDisplayed()
-                true
-            } catch (_: AssertionError) {
-                false
-            }
+            PageViews.hasVisibleText(compose, "Image Page Proof")
         }
         compose.waitUntil(timeoutMillis = 15_000) {
             calls.any { it.endsWith("leaf-256.png") }

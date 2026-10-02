@@ -89,4 +89,10 @@ Requires REQ-0003 position preservation after reflow, REQ-0005 page/gesture arbi
 - T09 froze size to 5 levels (0–4, default 2, scale `0.85 + 0.15 × step`), line spacing to 3 levels (0–2, default 1, multipliers 1.00/1.25/1.50), and margin to 3 levels (0–2, default 1; 8/16/24 dp). See `ReaderStyle`.
 - When unset, E-Ink soft-wrap is ON; Standard uses the stored value (`CODE_SOFT_WRAP_DEFAULT=true` is the storage fallback). Standard's first-use display default remains unverified.
 - T09 chose a fixed system-font allowlist (`system/sans-serif/serif`; monospace only for code). OEM family queries differ and remain unverified. Android `Typeface` constants resolve all three. Single-font devices must not show fake choices.
-- Markwon's default table limits (equal-width/full-width columns and copy behavior; `markdown-renderers.md` S5) are JVM-checked for reachability inside NORMAL horizontal scrolling. Real-device readability of equal-width columns and link taps remains unverified until T13.
+- Markwon's default table limits (`markdown-renderers.md` S5) are bypassed by the app's native cell grid. UX-07 now synchronizes widths from actual styled cells; NORMAL horizontal reachability remains covered. Real-device readability and link taps remain unverified until T13.
+
+## UX-07 acceptance clarification (2026-09-30)
+
+- **FR-11 / AC-8:** All rows share column widths measured from styled cell content, including headers and inline formatting. Empty cells retain their grid slot; rows share cell height. Draw 1 dp grid dividers and a 2 dp divider below the header. Wide tables remain horizontally reachable without page turns.
+- **FR-12 / AC-9:** Code-copy feedback appears in the existing action button for two seconds after the latest tap, then returns to the copy action. It must not move the code body or following blocks, and the copied payload remains the exact fence-free body.
+- Verification and screenshots are recorded in [ux-07-delivery.md](../plans/ux-07-delivery.md). This clarifies the existing READY requirement; hardware contrast remains unverified.

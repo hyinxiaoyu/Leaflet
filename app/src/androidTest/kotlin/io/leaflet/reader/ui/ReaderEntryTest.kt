@@ -71,12 +71,7 @@ class ReaderEntryTest {
             ReaderScreenShim(documentId = "page.md", vm = vm)
         }
         compose.waitUntil(timeoutMillis = 15_000) {
-            try {
-                compose.onNodeWithText("Leaflet Page Proof").assertIsDisplayed()
-                true
-            } catch (_: AssertionError) {
-                false
-            }
+            PageViews.hasVisibleText(compose, "Leaflet Page Proof")
         }
         return vm
     }
@@ -84,11 +79,9 @@ class ReaderEntryTest {
     @Test
     fun readerOpensMarkdownWithTitleAndBody() {
         val vm = setPage()
-        // Title is a Compose Text (assertable); body blocks render through
-        // Markwon AndroidView TextViews (invisible to compose finders), so
-        // body presence is asserted on the production document the page
-        // bound: block count + visible text of the H2 + table/code kinds.
-        compose.onNodeWithText("Leaflet Page Proof").assertIsDisplayed()
+        // UX-06 makes the chrome title transient; the document heading stays
+        // visible as a native Markwon TextView, even while the menu is closed.
+        check(PageViews.hasVisibleText(compose, "Leaflet Page Proof"))
         val doc = (vm.ui.value as io.leaflet.reader.ui.reader.ReaderUiState.Content).document
         check(doc.blocks.size >= 6)
         check(doc.blockTexts.any { it.contains("Second Section") })

@@ -245,13 +245,13 @@ class ReadingModeTest {
     fun storedValuesRoundTrip() {
         assertEquals(ReadingMode.CONTINUOUS_SCROLL, ReadingMode.of("CONTINUOUS_SCROLL"))
         assertEquals(ReadingMode.PAGE_TURN, ReadingMode.of("PAGE_TURN"))
-        assertEquals(ReadingMode.CONTINUOUS_SCROLL, ReadingMode.of("garbage"))
+        assertEquals(ReadingMode.PAGE_TURN, ReadingMode.of("garbage"))
     }
 
     @Test
     fun einkDefaultsToPageTurn() {
         assertEquals(ReadingMode.PAGE_TURN, ReadingMode.defaultForEink(true))
-        assertEquals(ReadingMode.CONTINUOUS_SCROLL, ReadingMode.defaultForEink(false))
+        assertEquals(ReadingMode.PAGE_TURN, ReadingMode.defaultForEink(false))
     }
 
     @Test

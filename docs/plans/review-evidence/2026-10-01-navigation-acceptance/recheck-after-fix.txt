@@ -1,0 +1,16 @@
+NAV-ACC-20261001 recheck against the fixed working tree
+Thu Oct  1 12:26:24 CST 2026
+---
+JUnit version 4.13.2
+.....................
+Time: 0.056
+
+OK (21 tests)
+
+JUnit version 4.13.2
+..
+Time: 0.04
+
+OK (2 tests)
+
+exit=0

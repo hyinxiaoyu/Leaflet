@@ -1,0 +1,18 @@
+Compose ui-test-android 1.7.5: androidx.compose.ui.test.ActionsKt
+  public static final androidx.compose.ui.test.SemanticsNodeInteraction performClick(androidx.compose.ui.test.SemanticsNodeInteraction);
+    Code:
+       0: aload_0
+       1: invokestatic  #12                 // Method androidx/compose/ui/test/GlobalAssertions.invokeGlobalAssertions:(Landroidx/compose/ui/test/SemanticsNodeInteraction;)Landroidx/compose/ui/test/SemanticsNodeInteraction;
+       4: invokestatic  #17                 // Method androidx/compose/ui/test/Actions_androidKt.performClickImpl:(Landroidx/compose/ui/test/SemanticsNodeInteraction;)Landroidx/compose/ui/test/SemanticsNodeInteraction;
+       7: areturn
+
+
+  public static final androidx.compose.ui.test.SemanticsNodeInteraction performClickImpl(androidx.compose.ui.test.SemanticsNodeInteraction);
+    Code:
+       0: aload_0
+       1: getstatic     #13                 // Field androidx/compose/ui/test/Actions_androidKt$performClickImpl$1.INSTANCE:Landroidx/compose/ui/test/Actions_androidKt$performClickImpl$1;
+       4: checkcast     #15                 // class kotlin/jvm/functions/Function1
+       7: invokestatic  #21                 // Method androidx/compose/ui/test/ActionsKt.performTouchInput:(Landroidx/compose/ui/test/SemanticsNodeInteraction;Lkotlin/jvm/functions/Function1;)Landroidx/compose/ui/test/SemanticsNodeInteraction;
+      10: areturn
+}
+

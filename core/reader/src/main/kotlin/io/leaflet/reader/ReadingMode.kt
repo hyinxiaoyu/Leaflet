@@ -20,10 +20,11 @@ enum class ReadingMode(val stored: String) {
     ;
 
     companion object {
-        fun of(stored: String): ReadingMode = entries.firstOrNull { it.stored == stored } ?: CONTINUOUS_SCROLL
+        fun of(stored: String): ReadingMode = entries.firstOrNull { it.stored == stored } ?: PAGE_TURN
 
-        /** E-Ink boots into page-turn, Standard into continuous scroll (FR-4). */
-        fun defaultForEink(isEink: Boolean): ReadingMode = if (isEink) PAGE_TURN else CONTINUOUS_SCROLL
+        /** Both display modes use ebook page turns unless the user chose scrolling (FR-4). */
+        @Suppress("UNUSED_PARAMETER")
+        fun defaultForEink(isEink: Boolean): ReadingMode = PAGE_TURN
     }
 }
 

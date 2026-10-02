@@ -1,0 +1,47 @@
+Compose foundation-android 1.7.5, AbstractClickableNode
+  public final boolean getShouldMergeDescendantSemantics();
+    Code:
+       0: iconst_1
+       1: ireturn
+
+  public final void applySemantics(androidx.compose.ui.semantics.SemanticsPropertyReceiver);
+    Code:
+       0: aload_0
+       1: getfield      #36                 // Field role:Landroidx/compose/ui/semantics/Role;
+       4: ifnull        22
+       7: aload_1
+       8: aload_0
+       9: getfield      #36                 // Field role:Landroidx/compose/ui/semantics/Role;
+      12: dup
+      13: invokestatic  #239                // Method kotlin/jvm/internal/Intrinsics.checkNotNull:(Ljava/lang/Object;)V
+      16: invokevirtual #424                // Method androidx/compose/ui/semantics/Role."unbox-impl":()I
+      19: invokestatic  #430                // Method androidx/compose/ui/semantics/SemanticsPropertiesKt."setRole-kuIjeqM":(Landroidx/compose/ui/semantics/SemanticsPropertyReceiver;I)V
+      22: aload_0
+      23: getfield      #32                 // Field onClickLabel:Ljava/lang/String;
+      26: astore_2
+      27: aload_1
+      28: aload_2
+      29: new           #432                // class androidx/compose/foundation/AbstractClickableNode$applySemantics$1
+      32: dup
+      33: aload_0
+      34: invokespecial #435                // Method androidx/compose/foundation/AbstractClickableNode$applySemantics$1."<init>":(Landroidx/compose/foundation/AbstractClickableNode;)V
+      37: checkcast     #396                // class kotlin/jvm/functions/Function0
+      40: invokestatic  #438                // Method androidx/compose/ui/semantics/SemanticsPropertiesKt.onClick:(Landroidx/compose/ui/semantics/SemanticsPropertyReceiver;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
+      43: aload_0
+      44: getfield      #40                 // Field enabled:Z
+      47: ifeq          66
+      50: aload_0
+      51: getfield      #60                 // Field focusableNode:Landroidx/compose/foundation/FocusableNode;
+      54: astore_3
+      55: iconst_0
+      56: istore        4
+      58: aload_3
+      59: aload_1
+      60: invokevirtual #440                // Method androidx/compose/foundation/FocusableNode.applySemantics:(Landroidx/compose/ui/semantics/SemanticsPropertyReceiver;)V
+      63: goto          70
+      66: aload_1
+      67: invokestatic  #443                // Method androidx/compose/ui/semantics/SemanticsPropertiesKt.disabled:(Landroidx/compose/ui/semantics/SemanticsPropertyReceiver;)V
+      70: aload_0
+      71: aload_1
+      72: invokevirtual #445                // Method applyAdditionalSemantics:(Landroidx/compose/ui/semantics/SemanticsPropertyReceiver;)V
+      75: return

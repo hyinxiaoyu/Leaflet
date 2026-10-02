@@ -27,8 +27,9 @@ The reader is now one list plus an overlay layer:
 
 1. **Frozen list geometry.** The `LazyColumn` is the only measured child of the root
    `Column(fillMaxSize().padding(horizontal = pageMarginDp, vertical = 16.dp))`. It keeps
-   `fillMaxSize()` and a constant `contentPadding(bottom = 32.dp)` tail gap; nothing about its
-   geometry depends on chrome visibility.
+   `fillMaxSize()` and a body inset — the headroom and chrome-aware tail gap described in the
+   follow-up review below, which replaced the first cut's constant `contentPadding(bottom = 32.dp)`;
+   nothing about the list's own geometry depends on chrome visibility.
 2. **Overlay chrome.** Inside the wrapping `Box`, declared after the list so it draws on top:
    a top layer (document title — only while the reading menu is open — plus the stale,
    degraded, and link notices and the search bar) and a bottom layer (a discreet anchored
@@ -108,10 +109,12 @@ Follow-up command for the instrumented evidence once a device is available:
 
 ## Limitations and follow-ups
 
-- The overlay occludes the top of the body while a notice or the search bar is open, and the
-  bottom while the menu is expanded. That is the intended zero-reflow trade-off; the turn
-  distance accounts for it, and the content tail keeps a constant 32 dp gap so the last line
-  stays readable above the footer. Not yet measured on hardware.
+- The overlay occludes body content in two places. The notices and the search bar reserve their
+  measured height as list headroom, so they never hide body text (including a match in block 0,
+  which no scroll can reveal — CR-20260930-03); the reading menu and the title, which does not
+  reserve headroom, cover the bottom/top while they are open, and the turn distance accounts for
+  them. The tail gap reserves the measured bottom chrome, so the last line can always be scrolled
+  clear of the footer and of an open menu (CR-20260930-01). Not yet measured on hardware.
 - The shipped guarantee is that the reading list's measured geometry cannot change when chrome
   toggles (asserted on the composed page). A strict "zero layout passes" claim would need
   layout-inspector accounting, which this environment could not produce.
@@ -124,3 +127,34 @@ Follow-up command for the instrumented evidence once a device is available:
   bilingual string resources.
 - Emulator screenshots and layout-inspector evidence required by the UX-06 stop condition were
   not produced on this machine.
+
+## Follow-up Code Review — 2026-09-30
+
+The [reader code review](code-review-2026-09-30.md) records five P2 findings against commit
+`5a754292c1ea02f33af0cb917f5cf24c29dbb763`: premature tail clamp behind the footer, TOC landing
+under the title, first-block search occlusion, external-link package-visibility preflight, and
+the E-Ink continuous-scroll default. The first three affect UX-06 acceptance; the last two concern
+other source first tracked in the same commit. Static paths are confirmed, and the isolated targeted
+JVM check passed 249 executed cases with no failures or errors.
+
+**All five were fixed on top of that commit** (see the resolution section of the review report):
+
+- The list's body inset is now `contentPadding(top = notices/search headroom, bottom =
+  max(32 dp, measured bottom chrome + 8 dp))`, and the turn clamp uses the list's real scroll
+  boundary (`canScrollForward` / `canScrollBackward`, CR-01). Neither value moves any item: the top
+  padding only provides scroll room at the document head, the bottom padding sits after the last
+  item, and the reading menu is deliberately excluded from the headroom, so the menu toggle still
+  cannot reflow the body. The reader and Settings screen also take their pre-read reading mode from
+  the display mode (CR-05), and the external-link handoff no longer gates on
+  `Intent.resolveActivity` (CR-04).
+- New regressions: JVM `SettingsStoreReadingModeTest` (3 tests, executed green) and
+  `ReaderSettingsTest.firstRunReadingModeFollowsTheDisplayMode`; device tests
+  `ReaderInteractionTest.tailTurnRevealsTheLastLineAboveTheFooterAndTheOpenMenu`,
+  `tocLandingIsNotCoveredByTheTopChrome`, and `firstBlockSearchMatchStaysBelowTheSearchBar`, which
+  measure the chrome's real `boundsInRoot` through the `ReaderChromeTags` semantics tags. The device
+  tests compile for both flavors but were NOT RUN (no device/emulator), and the CR-04 discriminating
+  scenario still needs a device with a query-invisible handler.
+- Where this report says "zero reflow on toggle", read it as: the reading list's measured geometry and
+  the body's item positions cannot change on a menu toggle; opening the search bar (or a notice
+  appearing) adds measured headroom, which is a deliberate one-time inset that keeps content visible
+  instead of hidden.

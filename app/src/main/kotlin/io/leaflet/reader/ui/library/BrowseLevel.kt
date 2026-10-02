@@ -102,7 +102,7 @@ private fun directChild(
     return name.ifEmpty { null }
 }
 
-private fun childPath(
+internal fun childPath(
     normalizedPrefix: String,
     name: String,
 ): String = if (normalizedPrefix.isEmpty()) name else "$normalizedPrefix/$name"

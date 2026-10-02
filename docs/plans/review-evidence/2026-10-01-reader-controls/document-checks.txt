@@ -1,0 +1,7 @@
+PASS paired structure, code fences and local links: docs/plans/reader-controls-product-wave2.md
+PASS paired structure, code fences and local links: docs/requirements/REQ-0014-reader-controls.md
+PASS paired structure, code fences and local links: docs/requirements/README.md
+PASS paired structure, code fences and local links: docs/architecture/reader.md
+PASS paired structure, code fences and local links: CHANGELOG.md
+PASS source hashes match executed checks
+PASS temporary outputs removed; declared delivery evidence retained

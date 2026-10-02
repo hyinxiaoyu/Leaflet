@@ -87,7 +87,8 @@ lastOpenedAt : Long
 
 ### 3.2 Deletion Commit Rule
 
-- Clean disappeared entries only after a **complete successful scan** (remove local row; position cascades; original file remains). A malformed directory row lacking ID/name makes subtree evidence uncertain, so skip cleanup but report success with a notice.
+- Clean disappeared entries only after a **complete successful scan** (remove local row; position cascades; original file remains). Any row the walk could not fully classify — blank document id or display name, whatever its type — makes subtree evidence uncertain, so cleanup is skipped for the whole walk while the run still succeeds and reports the row as an entry error (CR-20261001-05). A malformed row may be the very file or folder indexed before, now nameless, so partial enumeration must never become a disappearance cleanup.
+- Row classification reads the columns that ARE present (`classifyTreeRow` in `TreeLister`): the MIME type decides the directory bit even when the display name or id is missing, so a folder that lost its name stays a folder instead of becoming an empty "file" that would authorize deleting its previously indexed subtree. A row that states no MIME type at all is marked `TreeEntry.typeUnknown` and is therefore neither indexed as a document nor accepted as absence evidence, even when its id and display name are intact (CR-20261001-05). The parser's row → entry projection (`readTreeEntry`) derives the emitted entry from the classifier instead of rebuilding it field by field, so that marker — and any future field — cannot be dropped between the classifier and the scanner.
 - Partial failure, permission error, cancellation, or enumeration overflow must **not** treat unscanned entries as deleted. Failure/cancel/overflow performs zero index writes and retains old rows.
 
 ### 3.3 Cancellation and Concurrency

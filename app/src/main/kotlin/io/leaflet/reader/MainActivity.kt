@@ -7,8 +7,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -78,6 +81,13 @@ class MainActivity : ComponentActivity() {
             val mode by container.settingsStore.displayMode.collectAsState(
                 initial = container.settingsStore.defaultMode,
             )
+            val darkSystem = isSystemInDarkTheme()
+            SideEffect {
+                val bars = WindowCompat.getInsetsController(window, window.decorView)
+                val lightSurface = mode == DisplayMode.EINK || !darkSystem
+                bars.isAppearanceLightStatusBars = lightSurface
+                bars.isAppearanceLightNavigationBars = lightSurface
+            }
             LeafletTheme(displayMode = mode) {
                 val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
                 val libraryViewModel: LibraryViewModel = viewModel(factory = factory)
@@ -113,27 +123,39 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Hands [url] to another app (REQ-0009 FR-10) and reports whether a
-     * handler actually took it. Returns false when nothing can resolve the
-     * ACTION_VIEW Intent or the launch raises
-     * [android.content.ActivityNotFoundException], so the caller can surface
-     * the recoverable "no external app" notice instead of failing silently.
+     * Hands [url] to another app (REQ-0009 FR-10) and reports whether a handler
+     * actually took it. Returns false only when the launch raises
+     * [android.content.ActivityNotFoundException], so the caller can surface the
+     * recoverable "no external app" notice instead of failing silently.
+     *
+     * CR-20260930-04: this does NOT preflight with
+     * `Intent.resolveActivity(packageManager)`. Since Android 11 package
+     * visibility filters what an app can *query* while a launch may still be
+     * permitted, a resolution-based gate can report "no handler" for an
+     * installed, launchable app and suppress the handoff entirely. Launching and
+     * catching the failure is the documented approach;
+     * [Intent.resolveActivity] must never be a prerequisite for
+     * [startActivity].
      */
-    private fun launchExternalUrl(url: String): Boolean {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        if (intent.resolveActivity(packageManager) == null) return false
-        return try {
-            startActivity(intent)
+    private fun launchExternalUrl(url: String): Boolean =
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
             true
         } catch (_: android.content.ActivityNotFoundException) {
             false
         }
-    }
 }
 
 /** Settings surface (T09/REQ-0007 + T08/REQ-0005): display + typography + reading entries. */
 class SettingsViewModel(private val store: SettingsStore) : ViewModel() {
     val displayMode = store.displayMode
+
+    /**
+     * This install's default display mode. Screens use it to show the
+     * first-run reading mode (CR-20260930-05: E-Ink defaults to page turns)
+     * before the stored preference has been read.
+     */
+    val defaultDisplayMode: DisplayMode = store.defaultMode
 
     fun setDisplayMode(mode: DisplayMode) {
         viewModelScope.launch { store.setDisplayMode(mode) }

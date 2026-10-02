@@ -1,10 +1,8 @@
 package io.leaflet.reader.ui
 
 import android.content.pm.ActivityInfo
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -68,12 +66,7 @@ class ReaderDisplayTest {
             )
         }
         compose.waitUntil(timeoutMillis = 15_000) {
-            try {
-                compose.onNodeWithText("Display Proof").assertIsDisplayed()
-                true
-            } catch (_: AssertionError) {
-                false
-            }
+            PageViews.hasVisibleText(compose, "Display Proof")
         }
         return vm
     }
@@ -82,7 +75,7 @@ class ReaderDisplayTest {
     fun einkModeOpensSameDocument() {
         val vm = setPage(mode = DisplayMode.EINK)
         // Same production route under EINK: title lands, blocks bound.
-        compose.onNodeWithText("Display Proof").assertIsDisplayed()
+        assertTrue(PageViews.hasVisibleText(compose, "Display Proof"))
         compose.runOnIdle {
             val doc = (vm.ui.value as io.leaflet.reader.ui.reader.ReaderUiState.Content).document
             check(doc.blocks.isNotEmpty())

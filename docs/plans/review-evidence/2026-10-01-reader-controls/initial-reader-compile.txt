@@ -1,0 +1,15 @@
+app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderControls.kt:3:36: error: unresolved reference 'ExperimentalLayoutApi'.
+import androidx.compose.foundation.ExperimentalLayoutApi
+                                   ^^^^^^^^^^^^^^^^^^^^^
+app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderControls.kt:82:8: error: unresolved reference 'ExperimentalLayoutApi'.
+@OptIn(ExperimentalLayoutApi::class)
+       ^^^^^^^^^^^^^^^^^^^^^
+app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderControls.kt:82:8: error: annotation argument must be a compile-time constant.
+@OptIn(ExperimentalLayoutApi::class)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderControls.kt:95:5: error: the API of this layout is experimental and is likely to change in the future.
+    FlowRow(
+    ^^^^^^^
+app/src/main/kotlin/io/leaflet/reader/ui/reader/ReaderScreen.kt:801:37: error: 'val maxHeight: Dp' cannot be called in this context with an implicit receiver. Use an explicit receiver if necessary.
+                        maxHeight = maxHeight * 0.4f,
+                                    ^^^^^^^^^

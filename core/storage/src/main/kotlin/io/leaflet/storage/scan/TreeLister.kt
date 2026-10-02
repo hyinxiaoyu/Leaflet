@@ -22,6 +22,13 @@ data class TreeEntry(
     val size: Long?,
     val lastModified: Long?,
     val documentUri: String,
+    /**
+     * True when the provider did not state a usable MIME type, so the row is
+     * neither provably a directory nor provably a file (CR-20261001-05).
+     * Consumers must treat it as unclassifiable: never index it as a file, and
+     * never accept it as evidence that another entry is absent.
+     */
+    val typeUnknown: Boolean = false,
 )
 
 /**
@@ -45,6 +52,64 @@ interface TreeLister {
         treeUri: String,
         parentDocumentId: String,
     ): List<TreeEntry>
+}
+
+/**
+ * Row classification shared by the production cursor parser and its JVM tests
+ * (CR-20261001-05). Pure: no `Cursor`, `Uri`, or `ContentResolver` is involved,
+ * so the "which fields does this row actually provide" rule is testable without
+ * an Android runtime.
+ *
+ * Incomplete metadata is preserved rather than overwritten:
+ * - a blank [documentId] or [displayName] stays a row the scanner reports as an
+ *   entry-level error (FR-9) and skips — the identity/type it still has is kept;
+ * - the directory bit comes from [mimeType] alone, so a folder that lost its
+ *   name is still a folder and its subtree counts as present-but-unprovable
+ *   instead of vanished;
+ * - a row with no MIME type is marked [TreeEntry.typeUnknown]: it is neither a
+ *   directory nor a file, and must not be indexed as one or used as absence
+ *   evidence for another entry.
+ */
+internal fun classifyTreeRow(
+    documentId: String?,
+    displayName: String?,
+    mimeType: String?,
+    size: Long?,
+    lastModified: Long?,
+): TreeEntry =
+    TreeEntry(
+        documentId = documentId ?: "",
+        displayName = displayName ?: "",
+        isDirectory = mimeType == DocumentsContract.Document.MIME_TYPE_DIR,
+        size = size,
+        lastModified = lastModified,
+        documentUri = "",
+        // A blank/absent MIME means the provider did not state what this row is.
+        typeUnknown = mimeType.isNullOrEmpty(),
+    )
+
+/**
+ * The FINAL [TreeEntry] the scanner receives for one provider row
+ * (CR-20261001-05): the classifier's decision plus the row's document URI.
+ *
+ * This is the projection the production cursor parser uses for every row, and it
+ * is pure — the caller supplies [documentUriFor], so no `Cursor`, `Uri`, or
+ * `ContentResolver` is needed to test it. Deriving the emitted entry from the
+ * classifier's result (instead of rebuilding it field by field) means a field
+ * added to [TreeEntry] can never be silently dropped between the classifier and
+ * the scanner again.
+ */
+internal fun readTreeEntry(
+    documentId: String?,
+    displayName: String?,
+    mimeType: String?,
+    size: Long?,
+    lastModified: Long?,
+    documentUriFor: (String) -> String,
+): TreeEntry {
+    val row = classifyTreeRow(documentId, displayName, mimeType, size, lastModified)
+    val documentUri = if (row.documentId.isEmpty()) "" else documentUriFor(row.documentId)
+    return row.copy(documentUri = documentUri)
 }
 
 /**
@@ -88,17 +153,19 @@ class ContentResolverTreeLister(
         while (cursor.moveToNext()) {
             val docId = if (idCol >= 0) cursor.getString(idCol) else null
             val name = if (nameCol >= 0) cursor.getString(nameCol) else null
-            // Missing id/name: entry-level error at the scanner, not a throw here (FR-9).
-            if (docId.isNullOrEmpty() || name.isNullOrEmpty()) {
-                rows.add(TreeEntry("", name ?: "", false, null, null, ""))
-                continue
-            }
             val mime = if (mimeCol >= 0) cursor.getString(mimeCol) else null
-            val isDir = mime == DocumentsContract.Document.MIME_TYPE_DIR
             val size = if (sizeCol >= 0 && !cursor.isNull(sizeCol)) cursor.getLong(sizeCol) else null
             val mtime = if (mtimeCol >= 0 && !cursor.isNull(mtimeCol)) cursor.getLong(mtimeCol) else null
-            val docUri = DocumentsContract.buildDocumentUriUsingTree(tree, docId).toString()
-            rows.add(TreeEntry(docId, name, isDir, size, mtime, docUri))
+            // One row → one emitted entry, through the shared projection: the
+            // scanner must receive exactly what the classifier decided
+            // (CR-20261001-05). Rebuilding the entry field by field here used to
+            // drop `typeUnknown`, so a provider row with a missing MIME was
+            // delivered as a file.
+            rows.add(
+                readTreeEntry(docId, name, mime, size, mtime) { documentId ->
+                    DocumentsContract.buildDocumentUriUsingTree(tree, documentId).toString()
+                },
+            )
         }
         return rows
     }

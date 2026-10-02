@@ -1,4 +1,12 @@
-<resources>
+<!--
+  UX-10 owns complete English/Simplified Chinese string parity. Until it lands,
+  the browsing slice (REQ-0012 FR-7) adds ITS Chinese strings to
+  `values-zh/strings.xml` only, which makes lint report every legacy string as
+  missing a translation. Suppress exactly that one check here instead of
+  weakening lint globally; remove this `tools:ignore` together with the UX-10
+  parity work.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="app_name">Leaflet</string>
     <string name="library_title">Library</string>
     <string name="library_empty_body">No libraries yet. Add a folder to start reading.</string>
@@ -66,7 +74,7 @@
     <string name="reader_mode_page_turn">Page turn</string>
     <!-- UX-06 first-run tap-zone onboarding (shown once per install). -->
     <string name="reader_hint_title">Tap zones</string>
-    <string name="reader_hint_page_turn">Tap the left third for the previous page, the center third for the reading menu, or the right third for the next page.</string>
+    <string name="reader_hint_page_turn">Tap the left third for the previous page, the center third for the reading menu, or the right third for the next page. Swipe left for the next page or right for the previous page; the page changes when you lift your finger.</string>
     <string name="reader_hint_continuous">Swipe to scroll. Side taps turn pages only in page-turn mode; the center third opens the reading menu.</string>
     <string name="reader_hint_prev">Previous page</string>
     <string name="reader_hint_menu">Reading menu</string>
@@ -92,4 +100,52 @@
     <string name="about_license_pending">License: TBD — pending project owner decision. See THIRD_PARTY_LICENSES.md for dependency licenses.</string>
     <string name="about_refresh_note">Refresh is handled by the Android view system only; this build does not control E-Ink hardware waveforms.</string>
     <string name="about_third_party">Third-party licenses (THIRD_PARTY_LICENSES.md)</string>
+    <!-- UX-05/NB-02..NB-04 library browse navigation (REQ-0012): breadcrumb,
+         reserved scan status, and row type cues. Simplified Chinese
+         counterparts live in `values-zh/strings.xml`; UX-10 owns full
+         locale parity for the legacy strings. -->
+    <string name="library_breadcrumb_root">Library</string>
+    <string name="library_breadcrumb_separator">›</string>
+    <string name="library_breadcrumb_current">Current folder</string>
+    <string name="library_row_folder">Folder</string>
+    <string name="library_row_document">Document</string>
+    <string name="library_scan_progress">Scanned %1$d items</string>
+    <string name="library_scan_progress_dir">Scanned %1$d items · %2$s</string>
+
+    <!-- Daily reading Home and settings (REQ-0013). -->
+    <string name="home_subtitle">Your folders. Your reading.</string>
+    <string name="home_continue_title">Pick up where you left off</string>
+    <string name="home_continue_action">Continue reading</string>
+    <string name="home_open_recovery">Open recovery options</string>
+    <string name="home_folders_count">Your folders · %1$d</string>
+    <string name="home_empty_title">Start with a folder</string>
+    <string name="home_empty_body">Choose a folder containing Markdown or TXT files. Leaflet keeps your folder structure and reads originals directly.</string>
+    <string name="home_files_stay">Your original files stay in their folders.</string>
+    <string name="home_browse_folder">Tap to browse · hold to manage</string>
+    <string name="home_updating">Updating this folder…</string>
+    <string name="home_clear_title">Clear reading history?</string>
+    <string name="home_clear_body">Removes recent-document records only. Your files and saved reading positions stay.</string>
+    <string name="recent_time_now">Just now</string>
+    <string name="recent_time_minutes">%1$d min ago</string>
+    <string name="recent_time_hours">%1$d hr ago</string>
+    <string name="recent_time_days">%1$d days ago</string>
+    <string name="settings_saved_note">Changes are saved automatically.</string>
+    <string name="settings_display_heading">Display</string>
+    <string name="settings_reading_heading">Reading</string>
+    <string name="settings_typography_heading">Typography</string>
+    <string name="settings_preview_title">Reading preview</string>
+    <string name="settings_preview_body">A quieter place to read. Adjust the text until it feels comfortable, then return to your document.</string>
+    <string name="settings_font_size_actual">%1$.1f sp</string>
+    <string name="settings_spacing_actual">%1$.2f×</string>
+    <string name="settings_margin_actual">%1$d dp</string>
+    <string name="settings_decrease">Decrease %1$s</string>
+    <string name="settings_increase">Increase %1$s</string>
+    <string name="settings_selected">Selected</string>
+    <string name="home_loading">Opening your folders…</string>
+    <string name="home_load_failed">Could not load your folders. Retry to reconnect to the local index. Your files are untouched.</string>
+    <string name="reader_previous_screen">Previous</string>
+    <string name="reader_next_screen">Next</string>
+    <string name="reader_open_menu">Menu</string>
+    <string name="reader_close_menu">Close menu</string>
+    <string name="reader_controls_help">Reading help</string>
 </resources>
