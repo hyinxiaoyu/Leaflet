@@ -17,6 +17,8 @@ captures/
 # Harness sessions
 .kotlin/
 
+AGENTS.override.md
+
 # Keystore / signing (never commit production keys)
 *.jks
 *.keystore
